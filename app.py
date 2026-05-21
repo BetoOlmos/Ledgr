@@ -1,6 +1,7 @@
 # =====================================================
 # MINIMAL BLACK & WHITE UI
 # =============import streamlit as st
+import streamlit as st
 import pandas as pd
 import sqlite3
 import datetime
