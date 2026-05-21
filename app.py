@@ -16,56 +16,56 @@ st.set_page_config(
 )
 
 # =====================================================
-# MINIMAL BLACK & WHITE UI
+# MODERN MONOCHROME UI
 # =====================================================
 st.markdown("""
 <style>
 
 .stApp {
-    background-color: #f5f5f5;
-    color: #111111;
+    background-color: #0f1117;
+    color: #ffffff;
+}
+
+html, body, [class*="css"] {
+    background-color: #0f1117;
+    color: #ffffff;
 }
 
 .block-container {
     padding: 2rem 3rem;
 }
 
-html, body, [class*="css"] {
-    color: #111111;
-}
-
 h1, h2, h3, h4, h5, h6,
 p, div, span, label {
-    color: #111111 !important;
-    font-weight: 500;
-}
-
-[data-testid="metric-container"] {
-    background: rgba(255,255,255,0.75);
-    border: 1px solid rgba(0,0,0,0.06);
-    border-radius: 18px;
-    padding: 18px;
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.04);
+    color: #ffffff !important;
 }
 
 section[data-testid="stSidebar"] {
-    background-color: #ffffff;
-    border-right: 1px solid #eaeaea;
+    background-color: #161a23;
+    border-right: 1px solid rgba(255,255,255,0.06);
+}
+
+[data-testid="metric-container"] {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 18px;
+    padding: 18px;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
 }
 
 .stButton > button {
-    background-color: #111111;
-    color: white;
+    background-color: white;
+    color: black;
     border-radius: 10px;
     border: none;
     padding: 0.5rem 1rem;
+    font-weight: 600;
 }
 
 .stButton > button:hover {
-    background-color: #222222;
-    color: white;
+    background-color: #dddddd;
+    color: black;
 }
 
 [data-testid="stDataFrame"] {
