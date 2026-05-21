@@ -41,8 +41,13 @@ section.main {
 
 /* ================= TEXT ================= */
 h1, h2, h3, h4, h5, h6,
-p, div, span, label {
+p, label, span {
     color: #FAFAFA !important;
+}
+
+/* General text fix */
+div {
+    color: #FAFAFA;
 }
 
 /* ================= SIDEBAR ================= */
@@ -55,6 +60,16 @@ section[data-testid="stSidebar"] {
 input, textarea {
     color: #FAFAFA !important;
     background-color: #1E242D !important;
+}
+
+/* Text inside widgets */
+.stTextInput input {
+    color: #FAFAFA !important;
+}
+
+/* ================= RADIO BUTTONS ================= */
+.stRadio label {
+    color: #FAFAFA !important;
 }
 
 /* ================= BUTTONS ================= */
@@ -88,7 +103,6 @@ input, textarea {
 
 </style>
 """, unsafe_allow_html=True)
-
 
 # =====================================================
 # DATABASE
