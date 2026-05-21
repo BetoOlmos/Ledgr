@@ -13,36 +13,76 @@ st.set_page_config(
 )
 
 # =====================================================
-# SIMPLE CLEAN DARK THEME (ONE STYLE ONLY)
+# CLEAN DARK THEME (SAFE - NO SYNTAX ERRORS)
 # =====================================================
 st.markdown("""
 <style>
-html, body, .stApp {
+
+/* ================= GLOBAL APP ================= */
+.stApp {
     background-color: #0E1117 !important;
     color: #FAFAFA !important;
 }
 
+/* Main container */
+[data-testid="stAppViewContainer"] {
+    background-color: #0E1117 !important;
+}
+
+/* Header */
+[data-testid="stHeader"] {
+    background: #0E1117 !important;
+}
+
+/* Sidebar */
 [data-testid="stSidebar"] {
     background-color: #161B22 !important;
 }
 
-* {
+/* FORCE TEXT COLOR */
+html, body, p, span, div, label {
     color: #FAFAFA !important;
 }
 
+/* Inputs */
+input, textarea {
+    background-color: #1E242D !important;
+    color: #FAFAFA !important;
+}
+
+/* Buttons */
 .stButton > button {
     background-color: #FFFFFF !important;
     color: #000000 !important;
     border-radius: 10px;
     border: none;
     font-weight: 600;
+    padding: 0.5rem 1rem;
 }
 
+.stButton > button:hover {
+    background-color: #E6E6E6 !important;
+}
+
+/* Metrics */
 [data-testid="metric-container"] {
     background-color: #161B22 !important;
+    border: 1px solid rgba(255,255,255,0.08);
     border-radius: 14px;
     padding: 18px;
 }
+
+/* Dataframe */
+[data-testid="stDataFrame"] {
+    border-radius: 14px;
+    overflow: hidden;
+}
+
+/* Divider */
+hr {
+    border-color: rgba(255,255,255,0.08) !important;
+}
+
 </style>
 """, unsafe_allow_html=True)
 
