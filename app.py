@@ -4,13 +4,90 @@ import sqlite3
 import datetime
 
 # =====================================================
-# PAGE CONFIG (MUST BE FIRST STREAMLIT CALL)
+# PAGE CONFIG
 # =====================================================
 st.set_page_config(
     page_title="Ledgr",
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+# =====================================================
+# DARK MODE UI
+# =====================================================
+st.markdown("""
+<style>
+
+/* ================= MAIN APP ================= */
+.stApp {
+    background-color: #0E1117;
+    color: #FAFAFA;
+}
+
+/* Main app container */
+div[data-testid="stAppViewContainer"] {
+    background-color: #0E1117;
+}
+
+/* Main content */
+section.main {
+    background-color: #0E1117;
+}
+
+/* Block container */
+.block-container {
+    padding: 2rem 3rem;
+}
+
+/* ================= TEXT ================= */
+h1, h2, h3, h4, h5, h6,
+p, div, span, label {
+    color: #FAFAFA !important;
+}
+
+/* ================= SIDEBAR ================= */
+section[data-testid="stSidebar"] {
+    background-color: #161B22 !important;
+    border-right: 1px solid rgba(255,255,255,0.08);
+}
+
+/* ================= INPUTS ================= */
+input, textarea {
+    color: #FAFAFA !important;
+    background-color: #1E242D !important;
+}
+
+/* ================= BUTTONS ================= */
+.stButton > button {
+    background-color: #FFFFFF;
+    color: #000000;
+    border-radius: 10px;
+    border: none;
+    padding: 0.5rem 1rem;
+    font-weight: 600;
+}
+
+.stButton > button:hover {
+    background-color: #DDDDDD;
+    color: #000000;
+}
+
+/* ================= METRIC CARDS ================= */
+[data-testid="metric-container"] {
+    background: #161B22;
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 14px;
+    padding: 18px;
+}
+
+/* ================= DATAFRAME ================= */
+[data-testid="stDataFrame"] {
+    border-radius: 14px;
+    overflow: hidden;
+}
+
+</style>
+""", unsafe_allow_html=True)
 
 
 # =====================================================
