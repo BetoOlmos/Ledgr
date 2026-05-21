@@ -1,57 +1,95 @@
-import streamlit as st
-import pandas as pd
-import sqlite3
-import datetime
-
-# =====================================================
-# PAGE CONFIG
-# =====================================================
-st.set_page_config(
-    page_title="Ledgr",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
-
-# =====================================================
-# CLEAN DARK THEME (SINGLE SOURCE OF TRUTH)
-# =====================================================
 st.markdown("""
 <style>
+
+/* =====================================================
+   APP BACKGROUND
+===================================================== */
 .stApp {
     background-color: #0E1117 !important;
     color: #FAFAFA !important;
 }
 
+/* Main container */
+[data-testid="stAppViewContainer"] {
+    background-color: #0E1117 !important;
+}
+
+/* Header */
+[data-testid="stHeader"] {
+    background: #0E1117 !important;
+}
+
+/* Sidebar */
 [data-testid="stSidebar"] {
     background-color: #161B22 !important;
 }
 
+/* =====================================================
+   GLOBAL TEXT COLOR FIX
+===================================================== */
 html, body, p, span, div, label {
     color: #FAFAFA !important;
 }
 
+/* =====================================================
+   INPUTS
+===================================================== */
+input, textarea, select {
+    background-color: #1E242D !important;
+    color: #FAFAFA !important;
+    border-radius: 8px;
+}
+
+/* =====================================================
+   BUTTONS (FIXED TEXT COLOR)
+===================================================== */
 .stButton > button {
     background-color: #FFFFFF !important;
     color: #000000 !important;
     border-radius: 10px;
-    border: none;
+    border: 1px solid rgba(0,0,0,0.08);
     font-weight: 600;
+    padding: 0.5rem 1rem;
+    transition: all 0.2s ease-in-out;
 }
 
+/* IMPORTANT: fixes Streamlit inner text rendering */
+.stButton > button p {
+    color: #000000 !important;
+}
+
+/* Hover effect */
 .stButton > button:hover {
-    background-color: #E6E6E6 !important;
+    background-color: #F2F2F2 !important;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.25);
 }
 
+/* =====================================================
+   METRIC CARDS
+===================================================== */
 [data-testid="metric-container"] {
     background-color: #161B22 !important;
+    border: 1px solid rgba(255,255,255,0.08);
     border-radius: 14px;
     padding: 18px;
 }
 
+/* =====================================================
+   DATAFRAME
+===================================================== */
 [data-testid="stDataFrame"] {
     border-radius: 14px;
     overflow: hidden;
 }
+
+/* =====================================================
+   DIVIDERS
+===================================================== */
+hr {
+    border-color: rgba(255,255,255,0.08) !important;
+}
+
 </style>
 """, unsafe_allow_html=True)
 
