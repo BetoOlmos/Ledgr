@@ -13,26 +13,36 @@ st.set_page_config(
 )
 
 # =====================================================
-# LIGHT THEME UI OVERRIDE (WHITE BACKGROUND VERSION)
+# WHITE BACKGROUND OVERRIDE (ROBUST STREAMLIT FIX)
 # =====================================================
 st.markdown("""
 <style>
 
 /* ================= MAIN APP ================= */
 .stApp {
-    background-color: #ffffff;
+    background-color: #ffffff !important;
     color: #000000;
 }
 
-/* Full page override */
-html, body, [class*="css"] {
-    background-color: #ffffff;
-    color: #000000;
+/* Streamlit main container */
+div[data-testid="stAppViewContainer"] {
+    background-color: #ffffff !important;
 }
 
-/* Main container */
+/* Main content area */
+section.main {
+    background-color: #ffffff !important;
+}
+
+/* Block container */
 .block-container {
     padding: 2rem 3rem;
+    color: #000000;
+}
+
+/* ================= FULL PAGE FALLBACK ================= */
+html, body, [class*="css"] {
+    background-color: #ffffff !important;
     color: #000000;
 }
 
@@ -44,8 +54,12 @@ p, div, span, label {
 
 /* ================= SIDEBAR ================= */
 section[data-testid="stSidebar"] {
-    background-color: #f5f5f5;
+    background-color: #f5f5f5 !important;
     border-right: 1px solid #e0e0e0;
+}
+
+div[data-testid="stSidebar"] {
+    background-color: #f5f5f5 !important;
 }
 
 /* ================= METRICS ================= */
@@ -84,6 +98,7 @@ input, textarea {
 
 </style>
 """, unsafe_allow_html=True)
+
 
 # =====================================================
 # DATABASE
