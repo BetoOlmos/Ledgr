@@ -1,13 +1,10 @@
-# =====================================================
-# MINIMAL BLACK & WHITE UI
-# =============import streamlit as st
 import streamlit as st
 import pandas as pd
 import sqlite3
 import datetime
 
 # =====================================================
-# PAGE CONFIG
+# PAGE CONFIG (MUST BE FIRST STREAMLIT CALL)
 # =====================================================
 st.set_page_config(
     page_title="Ledgr",
@@ -16,61 +13,73 @@ st.set_page_config(
 )
 
 # =====================================================
-# MINIMAL BLACK & WHITE UI
+# LIGHT THEME UI OVERRIDE (WHITE BACKGROUND VERSION)
 # =====================================================
 st.markdown("""
 <style>
 
+/* ================= MAIN APP ================= */
 .stApp {
-    background-color: #f5f5f5;
-    color: #111111;
+    background-color: #ffffff;
+    color: #000000;
 }
 
+/* Full page override */
+html, body, [class*="css"] {
+    background-color: #ffffff;
+    color: #000000;
+}
+
+/* Main container */
 .block-container {
     padding: 2rem 3rem;
+    color: #000000;
 }
 
-html, body, [class*="css"] {
-    color: #111111;
-}
-
+/* ================= TEXT ================= */
 h1, h2, h3, h4, h5, h6,
 p, div, span, label {
-    color: #111111 !important;
-    font-weight: 500;
+    color: #000000 !important;
 }
 
-[data-testid="metric-container"] {
-    background: rgba(255,255,255,0.75);
-    border: 1px solid rgba(0,0,0,0.06);
-    border-radius: 18px;
-    padding: 18px;
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.04);
-}
-
+/* ================= SIDEBAR ================= */
 section[data-testid="stSidebar"] {
-    background-color: #ffffff;
-    border-right: 1px solid #eaeaea;
+    background-color: #f5f5f5;
+    border-right: 1px solid #e0e0e0;
 }
 
+/* ================= METRICS ================= */
+[data-testid="metric-container"] {
+    background: #ffffff;
+    border: 1px solid #e5e5e5;
+    border-radius: 14px;
+    padding: 18px;
+}
+
+/* ================= BUTTONS ================= */
 .stButton > button {
-    background-color: #111111;
-    color: white;
+    background-color: #000000;
+    color: #ffffff;
     border-radius: 10px;
     border: none;
     padding: 0.5rem 1rem;
+    font-weight: 600;
 }
 
 .stButton > button:hover {
-    background-color: #222222;
-    color: white;
+    background-color: #333333;
+    color: #ffffff;
 }
 
+/* ================= DATAFRAME ================= */
 [data-testid="stDataFrame"] {
     border-radius: 14px;
     overflow: hidden;
+}
+
+/* ================= INPUT FIELDS ================= */
+input, textarea {
+    color: #000000 !important;
 }
 
 </style>
