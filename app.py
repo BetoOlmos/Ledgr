@@ -3,13 +3,28 @@ import pandas as pd
 import sqlite3
 import datetime
 
+# =====================================================
+# PAGE CONFIG
+# =====================================================
 st.set_page_config(
     page_title="Ledgr",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-/* Main container */
+# =====================================================
+# CLEAN DARK THEME (FIXED PROPERLY WRAPPED CSS)
+# =====================================================
+st.markdown("""
+<style>
+
+/* Main app background */
+.stApp {
+    background-color: #0E1117 !important;
+    color: #FAFAFA !important;
+}
+
+/* App container */
 [data-testid="stAppViewContainer"] {
     background-color: #0E1117 !important;
 }
@@ -24,25 +39,19 @@ st.set_page_config(
     background-color: #161B22 !important;
 }
 
-/* =====================================================
-   GLOBAL TEXT COLOR FIX
-===================================================== */
+/* Global text */
 html, body, p, span, div, label {
     color: #FAFAFA !important;
 }
 
-/* =====================================================
-   INPUTS
-===================================================== */
+/* Inputs */
 input, textarea, select {
     background-color: #1E242D !important;
     color: #FAFAFA !important;
     border-radius: 8px;
 }
 
-/* =====================================================
-   BUTTONS (FIXED TEXT COLOR)
-===================================================== */
+/* Buttons */
 .stButton > button {
     background-color: #FFFFFF !important;
     color: #000000 !important;
@@ -53,21 +62,19 @@ input, textarea, select {
     transition: all 0.2s ease-in-out;
 }
 
-/* IMPORTANT: fixes Streamlit inner text rendering */
+/* IMPORTANT: fixes button text */
 .stButton > button p {
     color: #000000 !important;
 }
 
-/* Hover effect */
+/* Hover */
 .stButton > button:hover {
     background-color: #F2F2F2 !important;
     transform: translateY(-1px);
     box-shadow: 0 4px 12px rgba(0,0,0,0.25);
 }
 
-/* =====================================================
-   METRIC CARDS
-===================================================== */
+/* Metrics */
 [data-testid="metric-container"] {
     background-color: #161B22 !important;
     border: 1px solid rgba(255,255,255,0.08);
@@ -75,17 +82,13 @@ input, textarea, select {
     padding: 18px;
 }
 
-/* =====================================================
-   DATAFRAME
-===================================================== */
+/* Dataframe */
 [data-testid="stDataFrame"] {
     border-radius: 14px;
     overflow: hidden;
 }
 
-/* =====================================================
-   DIVIDERS
-===================================================== */
+/* Divider */
 hr {
     border-color: rgba(255,255,255,0.08) !important;
 }
@@ -178,7 +181,6 @@ def calc(df):
 if not st.session_state.onboarded:
 
     st.title("Welcome to Ledgr")
-    st.caption("Simple business clarity in seconds")
 
     choice = st.radio(
         "How will you use Ledgr?",
