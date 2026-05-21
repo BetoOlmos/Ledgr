@@ -1,13 +1,13 @@
-st.markdown("""
-<style>
+import streamlit as st
+import pandas as pd
+import sqlite3
+import datetime
 
-/* =====================================================
-   APP BACKGROUND
-===================================================== */
-.stApp {
-    background-color: #0E1117 !important;
-    color: #FAFAFA !important;
-}
+st.set_page_config(
+    page_title="Ledgr",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
 /* Main container */
 [data-testid="stAppViewContainer"] {
