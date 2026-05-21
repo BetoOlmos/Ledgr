@@ -18,84 +18,60 @@ st.set_page_config(
 st.markdown("""
 <style>
 
-/* ================= MAIN APP ================= */
-.stApp {
-    background-color: #0E1117;
-    color: #FAFAFA;
+/* ================= GLOBAL ================= */
+html, body, .stApp {
+    background-color: #0E1117 !important;
+    color: #FAFAFA !important;
 }
 
 /* Main app container */
-div[data-testid="stAppViewContainer"] {
-    background-color: #0E1117;
+[data-testid="stAppViewContainer"] {
+    background-color: #0E1117 !important;
 }
 
-/* Main content */
+/* Main section */
+[data-testid="stHeader"] {
+    background: #0E1117 !important;
+}
+
 section.main {
-    background-color: #0E1117;
+    background-color: #0E1117 !important;
 }
 
-/* Block container */
-.block-container {
-    padding: 2rem 3rem;
-}
-
-/* ================= TEXT ================= */
-h1, h2, h3, h4, h5, h6,
-p, label, span {
-    color: #FAFAFA !important;
-}
-
-/* General text fix */
-div {
-    color: #FAFAFA;
-}
-
-/* ================= SIDEBAR ================= */
-section[data-testid="stSidebar"] {
+/* Sidebar */
+[data-testid="stSidebar"] {
     background-color: #161B22 !important;
-    border-right: 1px solid rgba(255,255,255,0.08);
 }
 
-/* ================= INPUTS ================= */
-input, textarea {
+/* ALL TEXT */
+* {
     color: #FAFAFA !important;
+}
+
+/* Inputs */
+input, textarea, select {
     background-color: #1E242D !important;
-}
-
-/* Text inside widgets */
-.stTextInput input {
     color: #FAFAFA !important;
 }
 
-/* ================= RADIO BUTTONS ================= */
-.stRadio label {
-    color: #FAFAFA !important;
-}
-
-/* ================= BUTTONS ================= */
+/* Buttons */
 .stButton > button {
-    background-color: #FFFFFF;
-    color: #000000;
+    background-color: #FFFFFF !important;
+    color: #000000 !important;
     border-radius: 10px;
     border: none;
-    padding: 0.5rem 1rem;
     font-weight: 600;
 }
 
-.stButton > button:hover {
-    background-color: #DDDDDD;
-    color: #000000;
-}
-
-/* ================= METRIC CARDS ================= */
+/* Metrics */
 [data-testid="metric-container"] {
-    background: #161B22;
+    background-color: #161B22 !important;
     border: 1px solid rgba(255,255,255,0.08);
     border-radius: 14px;
     padding: 18px;
 }
 
-/* ================= DATAFRAME ================= */
+/* Dataframes */
 [data-testid="stDataFrame"] {
     border-radius: 14px;
     overflow: hidden;
