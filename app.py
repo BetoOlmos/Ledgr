@@ -13,28 +13,328 @@ st.set_page_config(
 )
 
 # =====================================================
-# DARK MODE UI
+# SIMPLE CLEAN DARK THEME (ONE STYLE ONLY)
 # =====================================================
 st.markdown("""
 <style>
-
-/* ================= GLOBAL ================= */
 html, body, .stApp {
     background-color: #0E1117 !important;
     color: #FAFAFA !important;
 }
 
-/* Main app container */
-[data-testid="stAppViewContainer"] {
-    background-color: #0E1117 !important;
+[data-testid="stSidebar"] {
+    background-color: #161B22 !important;
 }
 
-/* Main section */
-[data-testid="stHeader"] {
-    background: #0E1117 !important;
+* {
+    color: #FAFAFA !important;
 }
 
-section.main {
+.stButton > button {
+    background-color: #FFFFFF !important;
+    color: #000000 !important;
+    border-radius: 10px;
+    border: none;
+    font-weight: 600;
+}
+
+[data-testid="metric-container"] {
+    background-color: #161B22 !important;
+    border-radius: 14px;
+    padding: 18px;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# =====================================================
+# DATABASE (SAFE INIT)
+# =====================================================
+conn = sqlite3.connect("ledgr_core.db", check_same_thread=False)
+cursor = conn.cursor()
+
+def init_db():
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS transactions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id TEXT,
+        date TEXT,
+        category TEXT,
+        amount REAL,
+        type TEXT,
+        vendor TEXT,
+        account TEXT,
+        source TEXT
+    )
+    """)
+    conn.commit()
+
+init_db()
+
+# =====================================================
+# SIDEBAR
+# =====================================================
+st.sidebar.title("Ledgr")
+st.sidebar.caption("Financial clarity without complexity")
+
+user_id = st.sidebar.text_input(
+    "Business ID",
+    "demo_business"
+).strip().lower()
+
+page = st.sidebar.radio(
+    "Navigation",
+    ["Dashboard", "Add Data", "Transactions"]
+)
+
+# =====================================================
+# SESSION STATE
+# =====================================================
+if "onboarded" not in st.session_state:
+    st.session_state.onboarded = False
+
+if "user_mode" not in st.session_state:
+    st.session_state.user_mode = "Track my business (bookkeeping)"
+
+# =====================================================
+# LOAD DATA (SAFE)
+# =====================================================
+def load_data(user):
+
+    df = pd.read_sql_query(
+        "SELECT * FROM transactions WHERE user_id = ?",
+        conn,
+        params=(user,)
+    )
+
+    if not df.empty:
+        df["date"] = pd.to_datetime(df["date"], errors="coerce")
+
+    return df
+
+if "df" not in st.session_state or st.session_state.get("user") != user_id:
+    st.session_state.df = load_data(user_id)
+    st.session_state.user = user_id
+
+df = st.session_state.df
+
+# =====================================================
+# FINANCIAL ENGINE
+# =====================================================
+def calc(df):
+
+    if df.empty:
+        return 0, 0, 0
+
+    income = df[df["type"] == "Income"]["amount"].sum()
+    expenses = df[df["type"] == "Expense"]["amount"].sum()
+    net = income - expenses
+
+    return income, expenses, net
+
+# =====================================================
+# ONBOARDING
+# =====================================================
+if not st.session_state.onboarded:
+
+    st.title("Welcome to Ledgr")
+    st.caption("Understand your business in seconds — not spreadsheets.")
+
+    st.divider()
+
+    st.subheader("How will you use Ledgr?")
+
+    choice = st.radio(
+        "Choose one:",
+        [
+            "Track my business (bookkeeping)",
+            "Analyze existing financials (QuickBooks / Xero / CSV)"
+        ]
+    )
+
+    if st.button("Continue"):
+        st.session_state.user_mode = choice
+        st.session_state.onboarded = True
+        st.rerun()
+
+# =====================================================
+# DASHBOARD
+# =====================================================
+elif page == "Dashboard":
+
+    st.title("Ledgr")
+
+    mode = st.session_state.get("user_mode", "")
+
+    if "Analyze" in mode:
+        st.info("Analysis Mode — importing existing financial data.")
+    else:
+        st.info("Tracking Mode — building financial history.")
+
+    st.divider()
+
+    income, expenses, net = calc(df)
+
+    # HEALTH STATUS
+    if net > 1000:
+        health = "🟢 Healthy"
+        message = "Strong profitability."
+    elif net > 0:
+        health = "🟡 Stable"
+        message = "Profitable but tight margins."
+    else:
+        health = "🔴 Risk"
+        message = "Expenses exceed income."
+
+    # TOP EXPENSE
+    top_expense = "No data"
+
+    if not df.empty:
+        exp = df[df["type"] == "Expense"]
+
+        if not exp.empty:
+            top = exp.groupby("category")["amount"].sum().sort_values(ascending=False)
+            top_expense = f"{top.index[0]} (${top.iloc[0]:,.2f})"
+
+    # =================================================
+    # BUSINESS PULSE
+    # =================================================
+    st.subheader("Business Pulse")
+
+    c1, c2, c3 = st.columns(3)
+
+    c1.metric("Income", f"${income:,.2f}")
+    c2.metric("Expenses", f"${expenses:,.2f}")
+    c3.metric("Net Profit", f"${net:,.2f}")
+
+    st.divider()
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown("### Business Health")
+        st.write(health)
+        st.write(message)
+
+    with col2:
+        st.markdown("### Key Focus")
+        st.write(f"Top expense: {top_expense}")
+
+    st.divider()
+
+    if net > 0:
+        st.success("Your business is currently profitable.")
+    else:
+        st.error("Your business is currently losing money.")
+
+# =====================================================
+# ADD DATA
+# =====================================================
+elif page == "Add Data":
+
+    st.title("Add Data")
+
+    mode = st.radio("Mode", ["Manual Entry", "CSV Upload"])
+
+    # ---------------- MANUAL ----------------
+    if mode == "Manual Entry":
+
+        with st.form("transaction_form"):
+
+            date = st.date_input("Date", datetime.date.today())
+            category = st.text_input("Category")
+            amount = st.number_input("Amount", value=0.0)
+            ttype = st.selectbox("Type", ["Income", "Expense"])
+            vendor = st.text_input("Vendor")
+            account = st.text_input("Account")
+
+            submit = st.form_submit_button("Save")
+
+            if submit:
+
+                cursor.execute("""
+                    INSERT INTO transactions
+                    (user_id, date, category, amount, type, vendor, account, source)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    user_id,
+                    str(date),
+                    category,
+                    amount,
+                    ttype,
+                    vendor,
+                    account,
+                    "manual"
+                ))
+
+                conn.commit()
+                st.session_state.df = load_data(user_id)
+
+                st.success("Transaction saved.")
+
+    # ---------------- CSV ----------------
+    else:
+
+        file = st.file_uploader("Upload CSV", type=["csv"])
+
+        if file:
+
+            csv = pd.read_csv(file)
+            csv.columns = csv.columns.str.lower().str.strip()
+
+            def find(names):
+                for c in csv.columns:
+                    if c in names:
+                        return c
+                return None
+
+            date_col = find(["date"])
+            amount_col = find(["amount", "value", "total"])
+            type_col = find(["type"])
+            category_col = find(["category", "description"])
+
+            if not date_col or not amount_col:
+                st.error("CSV must contain date and amount columns.")
+                st.stop()
+
+            for _, row in csv.iterrows():
+
+                try:
+                    cursor.execute("""
+                        INSERT INTO transactions
+                        (user_id, date, category, amount, type, vendor, account, source)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (
+                        user_id,
+                        str(row[date_col]),
+                        row[category_col] if category_col else "Uncategorized",
+                        float(row[amount_col]),
+                        row[type_col] if type_col else "Expense",
+                        "",
+                        "",
+                        "csv"
+                    ))
+                except Exception as e:
+                    st.warning(f"Skipping row: {e}")
+
+            conn.commit()
+            st.session_state.df = load_data(user_id)
+
+            st.success("CSV uploaded successfully.")
+
+# =====================================================
+# TRANSACTIONS
+# =====================================================
+else:
+
+    st.title("Transactions")
+
+    if df.empty:
+        st.info("No transactions yet.")
+    else:
+        st.dataframe(
+            df.sort_values("date", ascending=False),
+            use_container_width=True
+        )section.main {
     background-color: #0E1117 !important;
 }
 
