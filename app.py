@@ -9,7 +9,7 @@ import datetime
 st.set_page_config(
     page_title="Ledgr",
     layout="wide",
-    initial_sidebar_state="collapsed"
+    initial_sidebar_state="expanded"
 )
 
 # =====================================================
@@ -152,6 +152,35 @@ def load_data(user):
 df = load_data(user_id)
 
 # =====================================================
+# SIDEBAR (MOVED ABOVE FOR GLOBAL ACCESS)
+# =====================================================
+st.sidebar.title("Ledgr")
+
+page = st.sidebar.radio(
+    "Navigation",
+    [
+        "Business Pulse",
+        "Transactions",
+        "Reports",
+        "Feedback"
+    ]
+)
+
+is_admin = False
+
+# =====================================================
+# CALCS
+# =====================================================
+def calc(df):
+    if df.empty:
+        return 0, 0, 0
+
+    income = df[df["type"] == "Income"]["amount"].sum()
+    expenses = df[df["type"] == "Expense"]["amount"].sum()
+
+    return income, expenses, income - expenses
+
+# =====================================================
 # WELCOME SCREEN
 # =====================================================
 if df.empty:
@@ -209,35 +238,6 @@ if df.empty:
         st.rerun()
 
     st.stop()
-
-# =====================================================
-# SIDEBAR
-# =====================================================
-st.sidebar.title("Ledgr")
-
-page = st.sidebar.radio(
-    "Navigation",
-    [
-        "Business Pulse",
-        "Transactions",
-        "Reports",
-        "Feedback"
-    ]
-)
-
-is_admin = False
-
-# =====================================================
-# CALCS
-# =====================================================
-def calc(df):
-    if df.empty:
-        return 0, 0, 0
-
-    income = df[df["type"] == "Income"]["amount"].sum()
-    expenses = df[df["type"] == "Expense"]["amount"].sum()
-
-    return income, expenses, income - expenses
 
 # =====================================================
 # BUSINESS PULSE
