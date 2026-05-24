@@ -11,7 +11,7 @@ st.set_page_config(
 )
 
 # =====================================================
-# STYLE (DARK, CLEAN)
+# STYLE
 # =====================================================
 st.markdown("""
 <style>
@@ -31,7 +31,7 @@ html, body, p, span, div, label {
 
 .hero {
     text-align: center;
-    padding: 3rem 0;
+    padding: 2rem 0 1rem 0;
 }
 
 .title {
@@ -45,98 +45,20 @@ html, body, p, span, div, label {
     margin-top: 10px;
 }
 
-.card {
+hr {
+    border: 1px solid rgba(255,255,255,0.08);
+}
+
+.section {
+    margin-top: 1.5rem;
+    padding: 1rem;
     background-color: #161B22;
-    padding: 16px;
     border-radius: 12px;
     border: 1px solid rgba(255,255,255,0.08);
-    margin-bottom: 12px;
 }
-
-.metric {
-    display: flex;
-    justify-content: space-between;
-    padding: 6px 0;
-}
-
-.good { color: #22c55e; }
-.warn { color: #facc15; }
-.bad { color: #ef4444; }
 
 </style>
 """, unsafe_allow_html=True)
-
-# =====================================================
-# HELPERS
-# =====================================================
-def health_score(rev_growth, exp_growth, profit_margin):
-    score = 0
-
-    if rev_growth > 0:
-        score += 1
-    if exp_growth < rev_growth:
-        score += 1
-    if profit_margin > 0.1:
-        score += 1
-
-    if score == 3:
-        return "🟢 Healthy"
-    elif score == 2:
-        return "🟡 Stable"
-    else:
-        return "🔴 Needs Attention"
-
-
-def safe_pct_change(series):
-    return series.pct_change().replace([float("inf"), -float("inf")], 0).fillna(0)
-
-
-def insights(df):
-    lines = []
-
-    if len(df) >= 2:
-        last = df.iloc[-1]
-        prev = df.iloc[-2]
-
-        rev_change = ((last["revenue"] - prev["revenue"]) / prev["revenue"]) * 100 if prev["revenue"] != 0 else 0
-        exp_change = ((last["expenses"] - prev["expenses"]) / prev["expenses"]) * 100 if prev["expenses"] != 0 else 0
-        profit_change = ((last["profit"] - prev["profit"]) / abs(prev["profit"])) * 100 if prev["profit"] != 0 else 0
-
-        lines.append(f"Revenue changed by {rev_change:.1f}% vs previous period.")
-        lines.append(f"Expenses changed by {exp_change:.1f}% vs previous period.")
-        lines.append(f"Profit changed by {profit_change:.1f}% vs previous period.")
-
-    # trend insights
-    if df["revenue"].is_monotonic_increasing:
-        lines.append("Revenue has been consistently increasing.")
-    if df["expenses"].iloc[-1] > df["expenses"].mean():
-        lines.append("Latest expenses are above average.")
-
-    if df["profit"].iloc[-1] > df["profit"].mean():
-        lines.append("Profit is currently above historical average.")
-
-    return lines
-
-
-def risks_opps(df):
-    risks = []
-    opps = []
-
-    if len(df) >= 3:
-        if df["expenses"].iloc[-1] > df["expenses"].iloc[-2] > df["expenses"].iloc[-3]:
-            risks.append("Expenses have increased for 3 consecutive periods.")
-
-        if df["revenue"].iloc[-1] < df["revenue"].iloc[-2]:
-            risks.append("Revenue has declined in the latest period.")
-
-        if df["profit"].iloc[-1] > df["profit"].iloc[-2]:
-            opps.append("Profit is improving in the latest period.")
-
-        if df["revenue"].iloc[-1] > df["expenses"].iloc[-1]:
-            opps.append("Revenue currently exceeds expenses.")
-
-    return risks, opps
-
 
 # =====================================================
 # HEADER
@@ -144,9 +66,7 @@ def risks_opps(df):
 st.markdown("""
 <div class="hero">
     <div class="title">Ledgr</div>
-    <div class="subtitle">
-        Upload your P&L. Understand your business instantly.
-    </div>
+    <div class="subtitle">Upload your P&L. Get instant Business Pulse.</div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -161,72 +81,138 @@ if not file:
 df = pd.read_csv(file)
 df.columns = df.columns.str.lower().str.strip()
 
-# expected: period, revenue, expenses
 required = {"period", "revenue", "expenses"}
 if not required.issubset(df.columns):
     st.error("CSV must contain: period, revenue, expenses")
     st.stop()
 
-df["profit"] = df["revenue"] - df["expenses"]
-
 df["period"] = pd.to_datetime(df["period"], errors="coerce")
 df = df.sort_values("period")
 
-df["rev_growth"] = safe_pct_change(df["revenue"])
-df["exp_growth"] = safe_pct_change(df["expenses"])
-df["profit_margin"] = df["profit"] / df["revenue"].replace(0, 1)
+df["profit"] = df["revenue"] - df["expenses"]
 
 # =====================================================
-# HEALTH
+# HELPERS
 # =====================================================
-last = df.iloc[-1]
-rev_growth = df["rev_growth"].iloc[-1]
-exp_growth = df["exp_growth"].iloc[-1]
-profit_margin = df["profit_margin"].iloc[-1]
-
-health = health_score(rev_growth, exp_growth, profit_margin)
-
-st.markdown(f"## Business Pulse: {health}")
-
-st.markdown("### What Changed")
-
-st.write(f"Revenue: {rev_growth*100:.1f}%")
-st.write(f"Expenses: {exp_growth*100:.1f}%")
-st.write(f"Profit: {((df['profit'].iloc[-1] - df['profit'].iloc[-2]) / abs(df['profit'].iloc[-2]) * 100) if len(df) > 1 else 0:.1f}%")
+def safe_change(curr, prev):
+    if prev == 0:
+        return 0
+    return curr - prev
 
 # =====================================================
-# TRENDS
+# LATEST PERIODS
 # =====================================================
-st.markdown("### Trends")
+latest = df.iloc[-1]
+previous = df.iloc[-2] if len(df) > 1 else latest
 
-st.line_chart(df.set_index("period")[["revenue", "expenses", "profit"]])
-
-# =====================================================
-# COST DRIVERS (simplified proxy)
-# =====================================================
-st.markdown("### Key Drivers")
-
-st.write(f"Avg Revenue: {df['revenue'].mean():,.0f}")
-st.write(f"Avg Expenses: {df['expenses'].mean():,.0f}")
-st.write(f"Avg Profit: {df['profit'].mean():,.0f}")
+rev_change = safe_change(latest["revenue"], previous["revenue"])
+exp_change = safe_change(latest["expenses"], previous["expenses"])
+profit_change = safe_change(latest["profit"], previous["profit"])
 
 # =====================================================
-# INSIGHTS
+# BUSINESS PULSE TITLE
 # =====================================================
-st.markdown("### Insights")
-
-for line in insights(df):
-    st.write("• " + line)
+st.markdown("---")
+st.markdown("# Business Pulse")
 
 # =====================================================
-# RISKS & OPPORTUNITIES
+# 1. AM I MAKING MONEY?
 # =====================================================
-risks, opps = risks_opps(df)
+st.markdown("## Am I Making Money?")
 
-st.markdown("### Risks")
-for r in risks:
-    st.write("• " + r)
+if latest["profit"] > 0:
+    st.success(f"Yes. You made ${latest['profit']:,.0f} profit in the latest period.")
+else:
+    st.error(f"No. You lost ${abs(latest['profit']):,.0f} in the latest period.")
 
-st.markdown("### Opportunities")
-for o in opps:
-    st.write("• " + o)
+# =====================================================
+# 2. WHAT CHANGED?
+# =====================================================
+st.markdown("## What Changed?")
+
+st.write(f"Revenue changed by ${rev_change:,.0f}.")
+st.write(f"Expenses changed by ${exp_change:,.0f}.")
+st.write(f"Profit changed by ${profit_change:,.0f}.")
+
+# =====================================================
+# 3. IS REVENUE GROWING?
+# =====================================================
+st.markdown("## Is Revenue Growing?")
+
+if latest["revenue"] > previous["revenue"]:
+    st.success(
+        f"Yes. Revenue increased from ${previous['revenue']:,.0f} to ${latest['revenue']:,.0f}."
+    )
+else:
+    st.warning(
+        f"No. Revenue decreased from ${previous['revenue']:,.0f} to ${latest['revenue']:,.0f}."
+    )
+
+# =====================================================
+# 4. IS PROFIT GROWING?
+# =====================================================
+st.markdown("## Is Profit Growing?")
+
+if latest["profit"] > previous["profit"]:
+    st.success(
+        f"Yes. Profit increased from ${previous['profit']:,.0f} to ${latest['profit']:,.0f}."
+    )
+else:
+    st.warning(
+        f"No. Profit decreased from ${previous['profit']:,.0f} to ${latest['profit']:,.0f}."
+    )
+
+# =====================================================
+# 5. WHAT STANDS OUT?
+# =====================================================
+st.markdown("## What Stands Out?")
+
+if latest["revenue"] > latest["expenses"]:
+    st.write("Revenue is higher than expenses, indicating positive operating performance.")
+else:
+    st.write("Expenses are higher than revenue, which may indicate losses.")
+
+best_month = df.loc[df["profit"].idxmax()]
+st.write(
+    f"Your strongest period was {best_month['period'].strftime('%B %Y')} "
+    f"with ${best_month['profit']:,.0f} profit."
+)
+
+# =====================================================
+# 6. WHAT SHOULD I PAY ATTENTION TO?
+# =====================================================
+st.markdown("## What Should I Pay Attention To?")
+
+if exp_change > rev_change:
+    st.warning("Expenses increased more than revenue in the latest period.")
+else:
+    st.success("Expense growth is under control relative to revenue.")
+
+# =====================================================
+# 7. WHAT IS IMPROVING?
+# =====================================================
+st.markdown("## What Is Improving?")
+
+if latest["profit"] > previous["profit"]:
+    st.write(f"Profit improved by ${profit_change:,.0f}.")
+
+if latest["revenue"] > previous["revenue"]:
+    st.write(f"Revenue improved by ${rev_change:,.0f}.")
+
+# =====================================================
+# 8. WHAT IS GETTING WORSE?
+# =====================================================
+st.markdown("## What Is Getting Worse?")
+
+issues = False
+
+if latest["expenses"] > previous["expenses"]:
+    st.write(f"Expenses increased by ${exp_change:,.0f}.")
+    issues = True
+
+if latest["profit"] < previous["profit"]:
+    st.write(f"Profit decreased by ${abs(profit_change):,.0f}.")
+    issues = True
+
+if not issues:
+    st.success("No major negative trends detected.")
