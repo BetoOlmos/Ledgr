@@ -1,7 +1,5 @@
 import streamlit as st
 import pandas as pd
-import sqlite3
-import datetime
 
 # =====================================================
 # CONFIG
@@ -9,11 +7,11 @@ import datetime
 st.set_page_config(
     page_title="Ledgr",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"
 )
 
 # =====================================================
-# CLEAN DARK THEME
+# STYLE (DARK, CLEAN)
 # =====================================================
 st.markdown("""
 <style>
@@ -23,347 +21,212 @@ st.markdown("""
     color: #FAFAFA;
 }
 
-[data-testid="stSidebar"] {
-    background-color: #161B22;
-}
-
 html, body, p, span, div, label {
     color: #FAFAFA !important;
 }
 
-.stButton > button {
-    background-color: #FFFFFF !important;
-    color: #000000 !important;
-    border-radius: 10px;
-    font-weight: 600;
+.block-container {
+    padding-top: 2rem;
 }
 
-.stButton > button p {
-    color: #000000 !important;
-}
-
-[data-testid="metric-container"] {
-    background-color: #161B22;
-    border-radius: 12px;
-    padding: 12px;
-    border: 1px solid rgba(255,255,255,0.08);
-}
-
-.hero-container {
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    min-height: 80vh;
+.hero {
     text-align: center;
+    padding: 3rem 0;
 }
 
-.hero-title {
-    font-size: 72px;
+.title {
+    font-size: 64px;
     font-weight: 700;
-    margin-bottom: 10px;
 }
 
-.hero-subtitle {
-    font-size: 20px;
+.subtitle {
+    font-size: 18px;
     color: #9CA3AF;
-    margin-bottom: 40px;
+    margin-top: 10px;
 }
 
-.upload-box {
-    width: 100%;
-    max-width: 700px;
-    margin: auto;
+.card {
+    background-color: #161B22;
+    padding: 16px;
+    border-radius: 12px;
+    border: 1px solid rgba(255,255,255,0.08);
+    margin-bottom: 12px;
 }
+
+.metric {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 0;
+}
+
+.good { color: #22c55e; }
+.warn { color: #facc15; }
+.bad { color: #ef4444; }
 
 </style>
 """, unsafe_allow_html=True)
 
 # =====================================================
-# DB
+# HELPERS
 # =====================================================
-conn = sqlite3.connect("ledgr_core.db", check_same_thread=False)
-cursor = conn.cursor()
+def health_score(rev_growth, exp_growth, profit_margin):
+    score = 0
 
-def init_db():
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS transactions (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id TEXT,
-        date TEXT,
-        category TEXT,
-        amount REAL,
-        type TEXT,
-        vendor TEXT,
-        account TEXT,
-        source TEXT
-    )
-    """)
+    if rev_growth > 0:
+        score += 1
+    if exp_growth < rev_growth:
+        score += 1
+    if profit_margin > 0.1:
+        score += 1
 
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS user_events (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id TEXT,
-        event TEXT,
-        timestamp TEXT,
-        metadata TEXT
-    )
-    """)
+    if score == 3:
+        return "🟢 Healthy"
+    elif score == 2:
+        return "🟡 Stable"
+    else:
+        return "🔴 Needs Attention"
 
-    conn.commit()
 
-init_db()
+def safe_pct_change(series):
+    return series.pct_change().replace([float("inf"), -float("inf")], 0).fillna(0)
 
-# =====================================================
-# TRACKING
-# =====================================================
-def track_event(user_id, event, metadata=""):
-    cursor.execute("""
-        INSERT INTO user_events (user_id, event, timestamp, metadata)
-        VALUES (?, ?, ?, ?)
-    """, (
-        user_id,
-        event,
-        datetime.datetime.now().isoformat(),
-        metadata
-    ))
-    conn.commit()
 
-# =====================================================
-# USER
-# =====================================================
-user_id = "demo_business"
+def insights(df):
+    lines = []
 
-# =====================================================
-# LOAD DATA
-# =====================================================
-def load_data(user):
-    df = pd.read_sql_query(
-        "SELECT * FROM transactions WHERE user_id = ?",
-        conn,
-        params=(user,)
-    )
+    if len(df) >= 2:
+        last = df.iloc[-1]
+        prev = df.iloc[-2]
 
-    if not df.empty:
-        df["date"] = pd.to_datetime(df["date"], errors="coerce")
+        rev_change = ((last["revenue"] - prev["revenue"]) / prev["revenue"]) * 100 if prev["revenue"] != 0 else 0
+        exp_change = ((last["expenses"] - prev["expenses"]) / prev["expenses"]) * 100 if prev["expenses"] != 0 else 0
+        profit_change = ((last["profit"] - prev["profit"]) / abs(prev["profit"])) * 100 if prev["profit"] != 0 else 0
 
-    return df
+        lines.append(f"Revenue changed by {rev_change:.1f}% vs previous period.")
+        lines.append(f"Expenses changed by {exp_change:.1f}% vs previous period.")
+        lines.append(f"Profit changed by {profit_change:.1f}% vs previous period.")
 
-df = load_data(user_id)
+    # trend insights
+    if df["revenue"].is_monotonic_increasing:
+        lines.append("Revenue has been consistently increasing.")
+    if df["expenses"].iloc[-1] > df["expenses"].mean():
+        lines.append("Latest expenses are above average.")
 
-# =====================================================
-# SIDEBAR (MOVED ABOVE FOR GLOBAL ACCESS)
-# =====================================================
-st.sidebar.title("Ledgr")
+    if df["profit"].iloc[-1] > df["profit"].mean():
+        lines.append("Profit is currently above historical average.")
 
-page = st.sidebar.radio(
-    "Navigation",
-    [
-        "Business Pulse",
-        "Transactions",
-        "Reports",
-        "Feedback"
-    ]
-)
+    return lines
 
-is_admin = False
+
+def risks_opps(df):
+    risks = []
+    opps = []
+
+    if len(df) >= 3:
+        if df["expenses"].iloc[-1] > df["expenses"].iloc[-2] > df["expenses"].iloc[-3]:
+            risks.append("Expenses have increased for 3 consecutive periods.")
+
+        if df["revenue"].iloc[-1] < df["revenue"].iloc[-2]:
+            risks.append("Revenue has declined in the latest period.")
+
+        if df["profit"].iloc[-1] > df["profit"].iloc[-2]:
+            opps.append("Profit is improving in the latest period.")
+
+        if df["revenue"].iloc[-1] > df["expenses"].iloc[-1]:
+            opps.append("Revenue currently exceeds expenses.")
+
+    return risks, opps
+
 
 # =====================================================
-# CALCS
+# HEADER
 # =====================================================
-def calc(df):
-    if df.empty:
-        return 0, 0, 0
-
-    income = df[df["type"] == "Income"]["amount"].sum()
-    expenses = df[df["type"] == "Expense"]["amount"].sum()
-
-    return income, expenses, income - expenses
-
-# =====================================================
-# WELCOME SCREEN
-# =====================================================
-if df.empty:
-
-    st.markdown("""
-    <div class="hero-container">
-        <div class="hero-title">Ledgr</div>
-        <div class="hero-subtitle">
-            Drop your business transactions and instantly understand your numbers.
-        </div>
+st.markdown("""
+<div class="hero">
+    <div class="title">Ledgr</div>
+    <div class="subtitle">
+        Upload your P&L. Understand your business instantly.
     </div>
-    """, unsafe_allow_html=True)
+</div>
+""", unsafe_allow_html=True)
 
-    file = st.file_uploader(
-        "",
-        type=["csv"],
-        label_visibility="collapsed"
-    )
+# =====================================================
+# UPLOAD
+# =====================================================
+file = st.file_uploader("Upload P&L CSV", type=["csv"])
 
-    if file:
-
-        csv = pd.read_csv(file)
-        csv.columns = csv.columns.str.lower().str.strip()
-
-        for _, row in csv.iterrows():
-
-            cursor.execute("""
-            INSERT INTO transactions (
-                user_id,
-                date,
-                category,
-                amount,
-                type,
-                vendor,
-                account,
-                source
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                user_id,
-                str(row.get("date", "")),
-                row.get("category", "uncategorized"),
-                float(row.get("amount", 0)),
-                row.get("type", "Expense"),
-                "",
-                "",
-                "csv"
-            ))
-
-        conn.commit()
-
-        track_event(user_id, "upload_csv")
-
-        st.success("Upload complete.")
-        st.rerun()
-
+if not file:
     st.stop()
 
-# =====================================================
-# BUSINESS PULSE
-# =====================================================
-if page == "Business Pulse":
+df = pd.read_csv(file)
+df.columns = df.columns.str.lower().str.strip()
 
-    st.title("Business Pulse")
+# expected: period, revenue, expenses
+required = {"period", "revenue", "expenses"}
+if not required.issubset(df.columns):
+    st.error("CSV must contain: period, revenue, expenses")
+    st.stop()
 
-    track_event(user_id, "view_dashboard")
+df["profit"] = df["revenue"] - df["expenses"]
 
-    income, expenses, net = calc(df)
+df["period"] = pd.to_datetime(df["period"], errors="coerce")
+df = df.sort_values("period")
 
-    c1, c2, c3 = st.columns(3)
-
-    c1.metric("Income", f"${income:,.2f}")
-    c2.metric("Expenses", f"${expenses:,.2f}")
-    c3.metric("Net", f"${net:,.2f}")
-
-    st.divider()
-
-    st.subheader("Monthly View")
-
-    if not df.empty:
-
-        df["month"] = df["date"].dt.to_period("M")
-
-        pnl = (
-            df.groupby(["month", "type"])["amount"]
-            .sum()
-            .unstack()
-            .fillna(0)
-        )
-
-        pnl["Net"] = (
-            pnl.get("Income", 0)
-            - pnl.get("Expense", 0)
-        )
-
-        st.dataframe(pnl, use_container_width=True)
+df["rev_growth"] = safe_pct_change(df["revenue"])
+df["exp_growth"] = safe_pct_change(df["expenses"])
+df["profit_margin"] = df["profit"] / df["revenue"].replace(0, 1)
 
 # =====================================================
-# TRANSACTIONS
+# HEALTH
 # =====================================================
-elif page == "Transactions":
+last = df.iloc[-1]
+rev_growth = df["rev_growth"].iloc[-1]
+exp_growth = df["exp_growth"].iloc[-1]
+profit_margin = df["profit_margin"].iloc[-1]
 
-    st.title("Transactions")
+health = health_score(rev_growth, exp_growth, profit_margin)
 
-    track_event(user_id, "view_transactions")
+st.markdown(f"## Business Pulse: {health}")
 
-    st.dataframe(
-        df.sort_values("date", ascending=False),
-        use_container_width=True
-    )
+st.markdown("### What Changed")
 
-    st.download_button(
-        "Download CSV",
-        df.to_csv(index=False),
-        "ledgr_data.csv"
-    )
+st.write(f"Revenue: {rev_growth*100:.1f}%")
+st.write(f"Expenses: {exp_growth*100:.1f}%")
+st.write(f"Profit: {((df['profit'].iloc[-1] - df['profit'].iloc[-2]) / abs(df['profit'].iloc[-2]) * 100) if len(df) > 1 else 0:.1f}%")
 
 # =====================================================
-# REPORTS
+# TRENDS
 # =====================================================
-elif page == "Reports":
+st.markdown("### Trends")
 
-    st.title("Reports")
-
-    track_event(user_id, "view_reports")
-
-    df["month"] = df["date"].dt.to_period("M")
-
-    st.subheader("Profit & Loss")
-
-    pnl = (
-        df.groupby(["month", "type"])["amount"]
-        .sum()
-        .unstack()
-        .fillna(0)
-    )
-
-    pnl["Net"] = (
-        pnl.get("Income", 0)
-        - pnl.get("Expense", 0)
-    )
-
-    st.dataframe(pnl, use_container_width=True)
-
-    st.subheader("Cash Flow")
-
-    cash = df.groupby("date")["amount"].sum()
-
-    st.line_chart(cash)
-
-    st.subheader("Balance Sheet")
-
-    st.info(
-        "Assets, Liabilities, and Equity will be added in a future version."
-    )
+st.line_chart(df.set_index("period")[["revenue", "expenses", "profit"]])
 
 # =====================================================
-# FEEDBACK
+# COST DRIVERS (simplified proxy)
 # =====================================================
-elif page == "Feedback":
+st.markdown("### Key Drivers")
 
-    st.title("What do you think?")
+st.write(f"Avg Revenue: {df['revenue'].mean():,.0f}")
+st.write(f"Avg Expenses: {df['expenses'].mean():,.0f}")
+st.write(f"Avg Profit: {df['profit'].mean():,.0f}")
 
-    col1, col2 = st.columns(2)
+# =====================================================
+# INSIGHTS
+# =====================================================
+st.markdown("### Insights")
 
-    with col1:
-        if st.button("👍"):
-            track_event(user_id, "feedback", "positive")
-            st.success("Thanks!")
+for line in insights(df):
+    st.write("• " + line)
 
-    with col2:
-        if st.button("👎"):
-            track_event(user_id, "feedback", "negative")
-            st.warning("We'll improve!")
+# =====================================================
+# RISKS & OPPORTUNITIES
+# =====================================================
+risks, opps = risks_opps(df)
 
-    comment = st.text_area("Optional feedback")
+st.markdown("### Risks")
+for r in risks:
+    st.write("• " + r)
 
-    if st.button("Submit feedback") and comment:
-
-        track_event(
-            user_id,
-            "feedback_comment",
-            comment
-        )
-
-        st.success("Saved!")
+st.markdown("### Opportunities")
+for o in opps:
+    st.write("• " + o)
