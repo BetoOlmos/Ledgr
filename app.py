@@ -27,6 +27,11 @@ def delta(curr, prev):
         return None
     return curr - prev
 
+def safe_ratio(a, b):
+    if a is None or b in (None, 0):
+        return None
+    return a / b
+
 # =====================================================
 # PARSERS
 # =====================================================
@@ -37,6 +42,7 @@ def extract_numbers(text):
 
     for line in text.split("\n"):
         l = line.lower()
+
         nums = re.findall(r"[\$]?\d[\d,]*\.?\d*", l)
         if not nums:
             continue
@@ -46,7 +52,7 @@ def extract_numbers(text):
         except:
             continue
 
-        if "revenue" in l or "sales" in l:
+        if "revenue" in l or "sales" in l or "income" in l:
             out["revenue"] = val
         elif "expense" in l:
             out["expenses"] = val
@@ -60,7 +66,6 @@ def extract_numbers(text):
             out["ar"] = val
 
     return out
-
 
 def parse_csv(file):
     df = pd.read_csv(file)
@@ -86,7 +91,7 @@ def parse_csv(file):
         if "liabil" in c:
             out["liabilities"] = pd.to_numeric(df[col], errors="coerce").sum()
 
-        if "receivable" in c:
+        if "receivable" in c or "ar" in c:
             out["ar"] = pd.to_numeric(df[col], errors="coerce").sum()
 
     return out
@@ -96,7 +101,7 @@ def parse_csv(file):
 # =====================================================
 st.title("Business Pulse")
 
-text = st.text_area("Paste P&L or Balance Sheet", height=200)
+text = st.text_area("Paste financial report", height=200)
 csv_file = st.file_uploader("Or upload CSV", type=["csv"])
 
 col1, col2 = st.columns(2)
@@ -131,20 +136,29 @@ if add_btn:
     st.success("Report added")
 
 # =====================================================
-# CORE MODEL (LATEST + PREVIOUS)
+# MODEL
 # =====================================================
 def get_models():
     if not st.session_state.reports:
         return None, None
 
     latest = st.session_state.reports[-1]["data"]
-    prev = st.session_state.reports[-2]["data"] if len(st.session_state.reports) > 1 else None
+    prev = st.session_state.reports[-2]["data"] if len(st.session_state.reports) > 1 else {}
 
     return latest, prev
 
 # =====================================================
-# INSIGHT ENGINE (REAL BUSINESS LOGIC)
+# INSIGHT ENGINE (FULL CFO STRUCTURE)
 # =====================================================
+def build_section(title, what, why, why_matters, evidence):
+    return {
+        "title": title,
+        "what": what,
+        "why": why,
+        "why_matters": why_matters,
+        "evidence": evidence
+    }
+
 def build_insights(latest, prev):
 
     r = latest.get("revenue")
@@ -154,136 +168,131 @@ def build_insights(latest, prev):
     l = latest.get("liabilities")
     ar = latest.get("ar")
 
-    rp = prev.get("revenue") if prev else None
-    ep = prev.get("expenses") if prev else None
-    pp = prev.get("profit") if prev else None
-    cp = prev.get("cash") if prev else None
-    arp = prev.get("ar") if prev else None
+    rp = prev.get("revenue")
+    ep = prev.get("expenses")
+    pp = prev.get("profit")
+    cp = prev.get("cash")
+    arp = prev.get("ar")
 
-    # =================================================
-    # DELTAS
-    # =================================================
     rev_d = delta(r, rp)
-    prof_d = delta(p, pp)
     exp_d = delta(e, ep)
+    prof_d = delta(p, pp)
     cash_d = delta(c, cp)
     ar_d = delta(ar, arp)
 
-    insights = {}
+    profit_margin = safe_ratio(p, r)
+    coverage = safe_ratio(c, l)
+
+    sections = []
 
     # =================================================
-    # 👀 BUSINESS SNAPSHOT (NARRATIVE)
+    # 👀 BUSINESS SNAPSHOT (GLOBAL STORY)
     # =================================================
-    snapshot = []
+    story = []
 
-    if r and rp:
-        snapshot.append(f"Revenue changed by {fmt(rev_d)}.")
+    if rev_d is not None:
+        story.append(f"Revenue changed by {fmt(rev_d)}")
 
-    if p and pp:
-        snapshot.append(f"Profit changed by {fmt(prof_d)}.")
+    if prof_d is not None:
+        story.append(f"Profit changed by {fmt(prof_d)}")
 
-    if exp_d:
-        snapshot.append(f"Expenses moved by {fmt(exp_d)}.")
+    if exp_d is not None:
+        story.append(f"Expenses moved by {fmt(exp_d)}")
 
-    if ar_d:
-        snapshot.append(f"Accounts receivable changed by {fmt(ar_d)}.")
+    if ar_d is not None:
+        story.append(f"Accounts receivable changed by {fmt(ar_d)}")
 
     if r and p:
-        snapshot.append(
-            f"Revenue is {fmt(r)} while profit is {fmt(p)}, "
-            f"showing {'strong' if p/r > 0.15 else 'moderate' if p/r > 0.05 else 'weak'} margin efficiency."
+        story.append(
+            f"Revenue is {fmt(r)} with profit of {fmt(p)}, "
+            f"indicating {'strong' if profit_margin and profit_margin > 0.15 else 'moderate' if profit_margin and profit_margin > 0.05 else 'weak'} margin efficiency."
         )
 
-    insights["👀 Business Snapshot"] = {
-        "summary": " ".join(snapshot),
-        "evidence": [
+    sections.append(build_section(
+        "👀 Business Snapshot",
+        " ".join(story),
+        "This is the combined movement of your business performance across revenue, profit, expenses, and cash flow.",
+        "It shows whether growth is healthy or being absorbed by costs and cash pressure.",
+        [
             f"Revenue: {fmt(r)}",
             f"Profit: {fmt(p)}",
             f"Expenses: {fmt(e)}",
             f"Cash: {fmt(c)}",
             f"AR: {fmt(ar)}"
         ]
-    }
+    ))
 
     # =================================================
     # 💰 PROFITABILITY
     # =================================================
-    if r and e and p:
-        insights["💰 Profitability"] = {
-            "summary": (
-                f"Revenue is {fmt(r)}, but profit is only {fmt(p)} because expenses are {fmt(e)}."
-                + (f" Profit changed by {fmt(prof_d)}." if prof_d else "")
-            ),
-            "why": "Profit is determined by how much of revenue is retained after costs.",
-            "why_it_matters": "Strong revenue with weak profit signals cost pressure or inefficiency.",
-            "evidence": [
-                f"Revenue Change: {fmt(rev_d)}",
-                f"Profit Change: {fmt(prof_d)}",
-                f"Expense Change: {fmt(exp_d)}"
-            ]
-        }
+    sections.append(build_section(
+        "💰 Profitability",
+        f"Revenue is {fmt(r)} and expenses are {fmt(e)}, resulting in profit of {fmt(p)}. Change in profit: {fmt(prof_d)}.",
+        "Profit reflects how efficiently revenue is converted after costs.",
+        "If expenses grow faster than revenue, profitability weakens even in growth periods.",
+        [
+            f"Revenue Change: {fmt(rev_d)}",
+            f"Expense Change: {fmt(exp_d)}",
+            f"Profit Change: {fmt(prof_d)}"
+        ]
+    ))
 
     # =================================================
     # 📈 GROWTH
     # =================================================
-    if r:
-        insights["📈 Growth"] = {
-            "summary": f"Revenue is currently {fmt(r)} with a change of {fmt(rev_d)}.",
-            "why": "Revenue is the top-line driver of all business performance.",
-            "why_it_matters": "Growth without profit improvement may indicate rising cost structure.",
-            "evidence": [
-                f"Revenue Change: {fmt(rev_d)}"
-            ]
-        }
+    sections.append(build_section(
+        "📈 Growth",
+        f"Revenue is {fmt(r)} with change of {fmt(rev_d)}.",
+        "Revenue is the primary driver of business expansion.",
+        "Growth without profit improvement signals cost inefficiency.",
+        [
+            f"Revenue Change: {fmt(rev_d)}"
+        ]
+    ))
 
     # =================================================
     # 💸 EXPENSES
     # =================================================
-    if e:
-        insights["💸 Expenses"] = {
-            "summary": f"Expenses are {fmt(e)} with a change of {fmt(exp_d)}.",
-            "why": "Expenses determine how efficiently revenue is converted into profit.",
-            "why_it_matters": "Rising expenses without matching revenue growth reduces sustainability.",
-            "evidence": [
-                f"Expense Change: {fmt(exp_d)}"
-            ]
-        }
+    sections.append(build_section(
+        "💸 Expenses",
+        f"Expenses are {fmt(e)} with change of {fmt(exp_d)}.",
+        "Expenses determine operational efficiency.",
+        "Rising expenses without revenue growth compress margins and cash flow.",
+        [
+            f"Expense Change: {fmt(exp_d)}"
+        ]
+    ))
 
     # =================================================
-    # 🏦 CASH
+    # 🏦 CASH POSITION (ALWAYS SHOWN)
     # =================================================
-    if c or ar:
-        insights["🏦 Cash Position"] = {
-            "summary": (
-                f"Cash is {fmt(c)} with {fmt(ar)} in unpaid invoices."
-                + (f" AR changed by {fmt(ar_d)}." if ar_d else "")
-            ),
-            "why": "Cash represents real liquidity, not accounting profit.",
-            "why_it_matters": "High receivables can create cash flow stress even in profitable businesses.",
-            "evidence": [
-                f"Cash Change: {fmt(cash_d)}",
-                f"AR Change: {fmt(ar_d)}"
-            ]
-        }
+    sections.append(build_section(
+        "🏦 Cash Position",
+        f"Cash is {fmt(c)} with {fmt(ar)} in receivables. Change in cash: {fmt(cash_d)}.",
+        "Cash represents real liquidity, not accounting profit.",
+        "High receivables or low cash can create short-term survival pressure.",
+        [
+            f"Cash Change: {fmt(cash_d)}",
+            f"AR Change: {fmt(ar_d)}"
+        ]
+    ))
 
     # =================================================
-    # ⚖️ DEBT / STABILITY
+    # ⚖️ DEBT & STABILITY (ALWAYS SHOWN)
     # =================================================
-    if c and l:
-        ratio = c / l if l else 0
+    sections.append(build_section(
+        "⚖️ Debt & Financial Stability",
+        f"Cash is {fmt(c)} vs liabilities of {fmt(l)}. Coverage ratio: {coverage:.2f if coverage else 'N/A'}.",
+        "This shows whether the business can cover obligations with available liquidity.",
+        "Low coverage signals dependency on incoming cash flow or financing.",
+        [
+            f"Cash: {fmt(c)}",
+            f"Liabilities: {fmt(l)}",
+            f"Coverage Ratio: {coverage if coverage else 'N/A'}"
+        ]
+    ))
 
-        insights["⚖️ Debt & Stability"] = {
-            "summary": f"Cash of {fmt(c)} vs liabilities of {fmt(l)}.",
-            "why": "Measures short-term financial resilience.",
-            "why_it_matters": "Low coverage indicates dependency on incoming cash flow to survive obligations.",
-            "evidence": [
-                f"Cash: {fmt(c)}",
-                f"Liabilities: {fmt(l)}",
-                f"Coverage Ratio: {ratio:.2f}"
-            ]
-        }
-
-    return insights
+    return sections
 
 # =====================================================
 # RUN
@@ -300,19 +309,13 @@ if run_btn:
 
     st.markdown("## Business Pulse")
 
-    for k, v in result.items():
-        st.subheader(k)
-
-        st.write(v["summary"])
-
-        if "why" in v:
-            st.write("Why:", v["why"])
-
-        if "why_it_matters" in v:
-            st.write("Why it matters:", v["why_it_matters"])
-
+    for s in result:
+        st.subheader(s["title"])
+        st.write(s["what"])
+        st.write("Why:", s["why"])
+        st.write("Why it matters:", s["why_matters"])
         st.write("Evidence:")
-        for e in v["evidence"]:
+        for e in s["evidence"]:
             st.write("- " + e)
 
     st.write("---")
