@@ -18,9 +18,15 @@ if "reports" not in st.session_state:
 # HELPERS
 # =====================================================
 def fmt(v):
-    if v is None:
+    if v is None or v == 0:
         return "N/A"
     return f"${v:,.0f}"
+
+def clean(v):
+    # IMPORTANT: treat 0 as missing signal (your requirement fix)
+    if v is None or v == 0:
+        return None
+    return v
 
 def delta(curr, prev):
     if curr is None or prev is None:
@@ -43,6 +49,7 @@ def extract_numbers(text):
     for line in text.split("\n"):
         l = line.lower()
         nums = re.findall(r"[\$]?\d[\d,]*\.?\d*", l)
+
         if not nums:
             continue
 
@@ -50,6 +57,8 @@ def extract_numbers(text):
             val = float(nums[-1].replace("$", "").replace(",", ""))
         except:
             continue
+
+        val = clean(val)
 
         if "revenue" in l or "sales" in l or "income" in l:
             out["revenue"] = val
@@ -76,22 +85,28 @@ def parse_csv(file):
         c = col.lower()
 
         if "revenue" in c or "sales" in c:
-            out["revenue"] = pd.to_numeric(df[col], errors="coerce").sum()
+            v = pd.to_numeric(df[col], errors="coerce").sum()
+            out["revenue"] = clean(v)
 
         if "expense" in c:
-            out["expenses"] = pd.to_numeric(df[col], errors="coerce").sum()
+            v = pd.to_numeric(df[col], errors="coerce").sum()
+            out["expenses"] = clean(v)
 
         if "profit" in c:
-            out["profit"] = pd.to_numeric(df[col], errors="coerce").sum()
+            v = pd.to_numeric(df[col], errors="coerce").sum()
+            out["profit"] = clean(v)
 
         if "cash" in c:
-            out["cash"] = pd.to_numeric(df[col], errors="coerce").sum()
+            v = pd.to_numeric(df[col], errors="coerce").sum()
+            out["cash"] = clean(v)
 
         if "liabil" in c:
-            out["liabilities"] = pd.to_numeric(df[col], errors="coerce").sum()
+            v = pd.to_numeric(df[col], errors="coerce").sum()
+            out["liabilities"] = clean(v)
 
         if "receivable" in c or "ar" in c:
-            out["ar"] = pd.to_numeric(df[col], errors="coerce").sum()
+            v = pd.to_numeric(df[col], errors="coerce").sum()
+            out["ar"] = clean(v)
 
     return out
 
@@ -141,46 +156,44 @@ def get_models():
     return latest, prev
 
 # =====================================================
-# CFO SNAPSHOT ENGINE
+# SNAPSHOT BUILDER (FIXED)
 # =====================================================
 def build_snapshot(r, e, p, c, l, ar, rev_d, prof_d, exp_d, ar_d):
 
-    pieces = []
+    parts = []
 
     if rev_d is not None:
-        pieces.append(f"Revenue moved by {fmt(rev_d)}")
+        parts.append(f"Revenue moved {fmt(rev_d)}")
 
     if prof_d is not None:
-        pieces.append(f"profit changed by {fmt(prof_d)}")
+        parts.append(f"profit changed {fmt(prof_d)}")
 
     if exp_d is not None:
-        pieces.append(f"expenses shifted by {fmt(exp_d)}")
+        parts.append(f"expenses shifted {fmt(exp_d)}")
 
     if ar_d is not None:
-        pieces.append(f"receivables changed by {fmt(ar_d)}")
+        parts.append(f"receivables changed {fmt(ar_d)}")
 
-    return (
-        "CFO Snapshot: "
-        + ", ".join(pieces)
-        + f". Revenue is {fmt(r)}, profit is {fmt(p)}, cash is {fmt(c)}."
-    )
+    base = " ".join(parts)
+
+    return f"{base}. Revenue is {fmt(r)}, profit is {fmt(p)}, cash is {fmt(c)}."
 
 # =====================================================
-# INSIGHT ENGINE
+# INSIGHTS ENGINE
 # =====================================================
 def build_sections(latest, prev):
 
-    r = latest.get("revenue")
-    e = latest.get("expenses")
-    p = latest.get("profit")
-    c = latest.get("cash")
-    l = latest.get("liabilities")
-    ar = latest.get("ar")
+    r = clean(latest.get("revenue"))
+    e = clean(latest.get("expenses"))
+    p = clean(latest.get("profit"))
+    c = clean(latest.get("cash"))
+    l = clean(latest.get("liabilities"))
+    ar = clean(latest.get("ar"))
 
-    rp = prev.get("revenue")
-    ep = prev.get("expenses")
-    pp = prev.get("profit")
-    arp = prev.get("ar")
+    rp = clean(prev.get("revenue"))
+    ep = clean(prev.get("expenses"))
+    pp = clean(prev.get("profit"))
+    arp = clean(prev.get("ar"))
 
     rev_d = delta(r, rp)
     prof_d = delta(p, pp)
@@ -189,6 +202,7 @@ def build_sections(latest, prev):
 
     profit_margin = safe_ratio(p, r)
     coverage = safe_ratio(c, l)
+
     coverage_display = f"{coverage:.2f}" if coverage is not None else "N/A"
 
     snapshot = build_snapshot(r, e, p, c, l, ar, rev_d, prof_d, exp_d, ar_d)
@@ -196,13 +210,13 @@ def build_sections(latest, prev):
     sections = []
 
     # =================================================
-    # SNAPSHOT (NO EVIDENCE HERE)
+    # SNAPSHOT
     # =================================================
     sections.append({
         "title": "👀 CFO Snapshot",
         "what": snapshot,
-        "why": "This is the consolidated view of performance across revenue, profit, expenses, and cash flow.",
-        "why_matters": "It tells you in one pass whether the business is improving or deteriorating.",
+        "why": "High-level view of financial movement across the business.",
+        "why_matters": "Shows whether growth is healthy or being absorbed by costs and liquidity pressure.",
         "evidence": []
     })
 
@@ -211,9 +225,9 @@ def build_sections(latest, prev):
     # =================================================
     sections.append({
         "title": "💰 Profitability",
-        "what": f"Revenue is {fmt(r)}, expenses are {fmt(e)}, profit is {fmt(p)}.",
-        "why": "Profit shows what remains after all costs are removed.",
-        "why_matters": "Rising revenue without profit growth indicates cost pressure.",
+        "what": f"Revenue {fmt(r)}, expenses {fmt(e)}, profit {fmt(p)}.",
+        "why": "Profit is what remains after costs.",
+        "why_matters": "Weak profit signals cost or pricing issues even in growth.",
         "evidence": [
             f"Revenue Change: {fmt(rev_d)}",
             f"Profit Change: {fmt(prof_d)}"
@@ -225,9 +239,9 @@ def build_sections(latest, prev):
     # =================================================
     sections.append({
         "title": "📈 Growth",
-        "what": f"Revenue is {fmt(r)} with change of {fmt(rev_d)}.",
-        "why": "Revenue is the primary driver of expansion.",
-        "why_matters": "Growth without profit improvement reduces business quality.",
+        "what": f"Revenue is {fmt(r)} (change {fmt(rev_d)}).",
+        "why": "Revenue drives scale.",
+        "why_matters": "Growth without profit improvement reduces quality.",
         "evidence": [f"Revenue Change: {fmt(rev_d)}"]
     })
 
@@ -236,9 +250,9 @@ def build_sections(latest, prev):
     # =================================================
     sections.append({
         "title": "💸 Expenses",
-        "what": f"Expenses are {fmt(e)} with change of {fmt(exp_d)}.",
-        "why": "Expenses determine operational efficiency.",
-        "why_matters": "Uncontrolled expenses erode profit even when revenue grows.",
+        "what": f"Expenses are {fmt(e)} (change {fmt(exp_d)}).",
+        "why": "Expenses determine efficiency.",
+        "why_matters": "Rising expenses reduce margin even with stable revenue.",
         "evidence": [f"Expense Change: {fmt(exp_d)}"]
     })
 
@@ -247,9 +261,9 @@ def build_sections(latest, prev):
     # =================================================
     sections.append({
         "title": "🏦 Cash Position",
-        "what": f"Cash is {fmt(c)} with {fmt(ar)} in receivables.",
-        "why": "Cash reflects real liquidity available to operate the business.",
-        "why_matters": "High receivables can create cash strain even in profitable companies.",
+        "what": f"Cash {fmt(c)} with receivables {fmt(ar)}.",
+        "why": "Cash reflects liquidity.",
+        "why_matters": "Receivables delay real cash availability.",
         "evidence": [f"AR Change: {fmt(ar_d)}"]
     })
 
@@ -258,9 +272,9 @@ def build_sections(latest, prev):
     # =================================================
     sections.append({
         "title": "⚖️ Financial Stability",
-        "what": f"Cash is {fmt(c)} vs liabilities {fmt(l)}. Coverage ratio is {coverage_display}.",
-        "why": "Measures ability to meet obligations with available cash.",
-        "why_matters": "Low coverage increases financial vulnerability.",
+        "what": f"Cash {fmt(c)} vs liabilities {fmt(l)}. Coverage {coverage_display}.",
+        "why": "Ability to meet obligations.",
+        "why_matters": "Low coverage increases financial risk.",
         "evidence": [
             f"Cash: {fmt(c)}",
             f"Liabilities: {fmt(l)}"
