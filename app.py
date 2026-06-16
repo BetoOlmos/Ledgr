@@ -1,4 +1,5 @@
 import streamlit as st
+import pandas as pd
 import re
 from datetime import datetime
 
@@ -13,9 +14,6 @@ st.set_page_config(page_title="Business Pulse", layout="wide")
 if "reports" not in st.session_state:
     st.session_state.reports = []
 
-if "input_key" not in st.session_state:
-    st.session_state.input_key = 0
-
 # =====================================================
 # FORMAT
 # =====================================================
@@ -25,7 +23,7 @@ def fmt(v):
     return f"${v:,.0f}"
 
 # =====================================================
-# PARSER
+# PARSER (TEXT)
 # =====================================================
 def extract_numbers(text):
     if not text:
@@ -63,19 +61,49 @@ def extract_numbers(text):
     return out
 
 # =====================================================
-# HEADER
+# PARSER (CSV - SIMPLE BUT REAL)
 # =====================================================
-st.title("Business Pulse")
-st.write("Paste financial reports → Get business understanding")
+def parse_csv(file):
+    df = pd.read_csv(file)
+    df.columns = df.columns.str.lower()
+
+    out = {}
+
+    for col in df.columns:
+        c = col.lower()
+
+        if "revenue" in c or "sales" in c:
+            out["revenue"] = pd.to_numeric(df[col], errors="coerce").sum()
+
+        if "expense" in c:
+            out["expenses"] = pd.to_numeric(df[col], errors="coerce").sum()
+
+        if "profit" in c:
+            out["net_income"] = pd.to_numeric(df[col], errors="coerce").sum()
+
+        if "cash" in c:
+            out["cash"] = pd.to_numeric(df[col], errors="coerce").sum()
+
+        if "liabil" in c:
+            out["liabilities"] = pd.to_numeric(df[col], errors="coerce").sum()
+
+        if "asset" in c:
+            out["assets"] = pd.to_numeric(df[col], errors="coerce").sum()
+
+        if "receivable" in c or "ar" in c:
+            out["ar"] = pd.to_numeric(df[col], errors="coerce").sum()
+
+    return out
 
 # =====================================================
-# INPUT (FORCED RESET MECHANISM)
+# UI
 # =====================================================
-text = st.text_area(
-    "Paste financial report",
-    key=f"input_{st.session_state.input_key}",
-    height=200
-)
+st.title("Business Pulse")
+st.write("Upload or paste financial data → understand your business instantly")
+
+text_input = st.text_area("Paste P&L or Balance Sheet", height=200)
+
+csv_file = st.file_uploader("Or drag & drop CSV", type=["csv"])
 
 col1, col2 = st.columns(2)
 
@@ -83,42 +111,42 @@ with col1:
     add_btn = st.button("Add Report")
 
 with col2:
-    run_btn = st.button("Generate Business Snapshot")
+    run_btn = st.button("Generate Business Pulse")
 
 # =====================================================
-# ADD REPORT (AUTO CLEAR INPUT)
+# ADD REPORT
 # =====================================================
 if add_btn:
 
-    if not text.strip():
-        st.warning("No input detected")
+    parsed = {}
+
+    if csv_file:
+        parsed = parse_csv(csv_file)
+
+    elif text_input.strip():
+        parsed = extract_numbers(text_input)
+
+    if not parsed:
+        st.warning("No financial data detected")
         st.stop()
 
-    parsed = extract_numbers(text)
-
     st.session_state.reports.append({
-        "raw": text,
         "data": parsed,
         "time": datetime.now()
     })
 
-    # FORCE CLEAR INPUT
-    st.session_state.input_key += 1
-
     st.success("Report added")
-    st.rerun()
 
 # =====================================================
-# BUILD LATEST MODEL
+# MODEL (LATEST SNAPSHOT)
 # =====================================================
-def latest_data():
+def latest():
     if not st.session_state.reports:
         return {}
-
     return st.session_state.reports[-1]["data"]
 
 # =====================================================
-# INSIGHTS ENGINE (UPGRADED)
+# INSIGHT ENGINE (YOUR ORIGINAL VISION RESTORED)
 # =====================================================
 def insights(d):
 
@@ -128,73 +156,50 @@ def insights(d):
     l = d.get("liabilities")
     ar = d.get("ar")
 
-    output = {}
+    out = {}
 
-    # =================================================
+    # =========================
     # PROFITABILITY (WHAT + WHY + SO WHAT)
-    # =================================================
+    # =========================
     if r and e:
         p = r - e
-        margin = (p / r) if r else 0
 
-        output["Profitability"] = {
-            "summary": (
-                f"Revenue is {fmt(r)} and expenses are {fmt(e)}, "
-                f"resulting in about {fmt(p)} profit. "
-                f"This means roughly {margin:.0%} of revenue is retained as profit."
-            ),
-            "interpretation": (
-                "Profit is determined by how efficiently revenue is converted after costs. "
-                "Even with strong revenue, high expenses can compress real earnings."
-            ),
+        out["Profitability"] = {
+            "what": f"Revenue is {fmt(r)} and expenses are {fmt(e)}, leaving {fmt(p)} profit.",
+            "why": "Profit is what remains after all costs are removed from revenue.",
+            "so_what": "If expenses rise faster than revenue, profit will shrink even if sales look strong.",
             "evidence": [
                 f"Revenue: {fmt(r)}",
                 f"Expenses: {fmt(e)}",
-                f"Profit: {fmt(p)}",
-                f"Profit Margin: {margin:.0%}"
+                f"Profit: {fmt(p)}"
             ]
         }
 
-    # =================================================
-    # CASH POSITION (LIQUIDITY PRESSURE)
-    # =================================================
+    # =========================
+    # CASH FLOW REALITY
+    # =========================
     if c or ar:
-        pressure_note = ""
 
-        if ar and r:
-            ar_ratio = ar / r
-            pressure_note = f"Accounts receivable represents {ar_ratio:.0%} of revenue, which can delay cash flow."
-
-        output["Cash Position"] = {
-            "summary": (
-                f"Cash is {fmt(c)} with {fmt(ar)} tied in accounts receivable. "
-                f"{pressure_note}"
-            ),
-            "interpretation": (
-                "Cash position reflects real liquidity, not just profit. "
-                "High receivables can create cash stress even in profitable businesses."
-            ),
+        out["Cash Flow"] = {
+            "what": f"Cash is {fmt(c)} with {fmt(ar)} tied in unpaid invoices.",
+            "why": "Profit does not equal cash — unpaid invoices delay real money in the bank.",
+            "so_what": "High receivables can create cash stress even in profitable businesses.",
             "evidence": [
                 f"Cash: {fmt(c)}",
                 f"Accounts Receivable: {fmt(ar)}"
             ]
         }
 
-    # =================================================
-    # FINANCIAL STABILITY (BALANCE PRESSURE)
-    # =================================================
+    # =========================
+    # FINANCIAL HEALTH
+    # =========================
     if c and l:
         ratio = c / l if l else 0
 
-        output["Stability"] = {
-            "summary": (
-                f"Cash of {fmt(c)} compared to liabilities of {fmt(l)} "
-                f"gives a liquidity coverage ratio of {ratio:.2f}."
-            ),
-            "interpretation": (
-                "This ratio indicates short-term financial resilience. "
-                "Lower coverage can signal reliance on incoming cash flow to meet obligations."
-            ),
+        out["Financial Health"] = {
+            "what": f"Cash of {fmt(c)} vs liabilities of {fmt(l)}.",
+            "why": "This shows whether the business can cover short-term obligations.",
+            "so_what": "Lower coverage means higher reliance on incoming cash flow to survive.",
             "evidence": [
                 f"Cash: {fmt(c)}",
                 f"Liabilities: {fmt(l)}",
@@ -202,14 +207,14 @@ def insights(d):
             ]
         }
 
-    return output
+    return out
 
 # =====================================================
 # SNAPSHOT
 # =====================================================
 if run_btn:
 
-    data = latest_data()
+    data = latest()
 
     if not data:
         st.warning("No reports yet")
@@ -217,15 +222,23 @@ if run_btn:
 
     result = insights(data)
 
-    st.markdown("## Business Snapshot")
+    st.markdown("## Business Pulse")
 
     for k, v in result.items():
         st.subheader(k)
-        st.write(v["summary"])
 
-        st.write("Evidence:")
-        for x in v["evidence"]:
-            st.write("- " + x)
+        st.write("WHAT")
+        st.write(v["what"])
+
+        st.write("WHY")
+        st.write(v["why"])
+
+        st.write("SO WHAT")
+        st.write(v["so_what"])
+
+        st.write("EVIDENCE")
+        for e in v["evidence"]:
+            st.write("- " + e)
 
     st.write("---")
-    st.write("Reports stored:", len(st.session_state.reports))
+    st.write(f"Reports stored: {len(st.session_state.reports)}")
