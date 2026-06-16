@@ -57,33 +57,75 @@ with col2:
 # PARSER
 # =====================================================
 def extract_numbers(text):
+    """
+    Robust line-based financial parser for real P&Ls.
+    """
     if not text:
         return {}
 
-    text = text.lower()
-
-    patterns = {
-        "revenue": r"(total revenue|revenue|sales|income)[^\d]*[\$]?([\d,\.]+)",
-        "expenses": r"(total expenses|operating expenses|expenses|expense)[^\d]*[\$]?([\d,\.]+)",
-        "net_income": r"(net income|net profit|net loss|profit)[^\d]*[\$]?([\d,\.]+)",
-        "cash": r"(cash)[^\d]*[\$]?([\d,\.]+)",
-        "assets": r"(total assets|assets)[^\d]*[\$]?([\d,\.]+)",
-        "liabilities": r"(total liabilities|liabilities|debt)[^\d]*[\$]?([\d,\.]+)",
-        "equity": r"(equity|retained earnings)[^\d]*[\$]?([\d,\.]+)",
-        "ar": r"(accounts receivable|a/r|ar)[^\d]*[\$]?([\d,\.]+)"
-    }
-
     out = {}
 
-    for key, pattern in patterns.items():
-        matches = re.findall(pattern, text)
+    lines = text.split("\n")
 
-        if matches:
-            value = matches[-1][-1]
-            try:
-                out[key] = float(value.replace(",", ""))
-            except:
-                pass
+    def clean(val):
+        try:
+            return float(val.replace("$", "").replace(",", "").strip())
+        except:
+            return None
+
+    for line in lines:
+        line = line.lower().strip()
+
+        # skip empty lines
+        if not line:
+            continue
+
+        # normalize separators
+        line = line.replace(":", " ")
+
+        parts = line.split()
+
+        if len(parts) < 2:
+            continue
+
+        # try last token as number
+        value = clean(parts[-1])
+        if value is None:
+            continue
+
+        # match categories by keywords
+        if "revenue" in line:
+            out["revenue"] = value
+
+        elif "sales" in line:
+            out["revenue"] = value
+
+        elif "expenses" in line:
+            out["expenses"] = value
+
+        elif "operating expense" in line:
+            out["expenses"] = value
+
+        elif "net income" in line:
+            out["net_income"] = value
+
+        elif "profit" in line:
+            out["net_income"] = value
+
+        elif "cash" in line:
+            out["cash"] = value
+
+        elif "liabilit" in line:
+            out["liabilities"] = value
+
+        elif "assets" in line:
+            out["assets"] = value
+
+        elif "equity" in line:
+            out["equity"] = value
+
+        elif "accounts receivable" in line:
+            out["ar"] = value
 
     return out
 
