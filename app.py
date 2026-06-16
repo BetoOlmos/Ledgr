@@ -66,27 +66,35 @@ def clean_number(value):
 
 def extract_numbers(text):
     """
-    Very simple extraction for MVP.
-    Works on messy text.
+    More realistic financial parser for CPA-style P&Ls.
     """
+    if not text:
+        return {}
+
     text = text.lower()
 
     patterns = {
-        "revenue": r"(revenue|sales|income)[^\d]*([\d,\.]+)",
-        "expenses": r"(expenses|expense|opex)[^\d]*([\d,\.]+)",
-        "net_income": r"(net income|net profit|profit)[^\d]*([\d,\.]+)",
-        "cash": r"(cash)[^\d]*([\d,\.]+)",
-        "assets": r"(assets)[^\d]*([\d,\.]+)",
-        "liabilities": r"(liabilities|debt)[^\d]*([\d,\.]+)",
-        "equity": r"(equity)[^\d]*([\d,\.]+)",
-        "ar": r"(accounts receivable|a/r|ar)[^\d]*([\d,\.]+)"
+        "revenue": r"(total revenue|revenue|sales|income)[^\d]*[\$]?([\d,\,\.]+)",
+        "expenses": r"(total expenses|operating expenses|expenses|expense)[^\d]*[\$]?([\d,\,\.]+)",
+        "net_income": r"(net income|net profit|net loss|profit)[^\d]*[\$]?([\d,\,\.]+)",
+        "cash": r"(cash)[^\d]*[\$]?([\d,\,\.]+)",
+        "assets": r"(total assets|assets)[^\d]*[\$]?([\d,\,\.]+)",
+        "liabilities": r"(total liabilities|liabilities|debt)[^\d]*[\$]?([\d,\,\.]+)",
+        "equity": r"(equity|retained earnings)[^\d]*[\$]?([\d,\,\.]+)"
     }
 
     out = {}
-    for k, pattern in patterns.items():
-        match = re.search(pattern, text)
-        if match:
-            out[k] = clean_number(match.group(2))
+
+    for key, pattern in patterns.items():
+        matches = re.findall(pattern, text)
+
+        if matches:
+            # take LAST match (usually totals are at bottom of P&L)
+            value = matches[-1][-1] if isinstance(matches[-1], tuple) else matches[-1]
+            try:
+                out[key] = float(value.replace(",", ""))
+            except:
+                pass
 
     return out
 
