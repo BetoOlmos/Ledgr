@@ -57,11 +57,10 @@ with col2:
 # PARSER
 # =====================================================
 def extract_numbers(text):
-    """
-    Robust line-based financial parser for real P&Ls.
-    """
     if not text:
         return {}
+
+    text = text.lower()
 
     out = {}
 
@@ -75,47 +74,32 @@ def extract_numbers(text):
 
     for line in lines:
         line = line.lower().strip()
-
-        # skip empty lines
         if not line:
             continue
 
-        # normalize separators
         line = line.replace(":", " ")
-
         parts = line.split()
 
         if len(parts) < 2:
             continue
 
-        # try last token as number
         value = clean(parts[-1])
         if value is None:
             continue
 
-        # match categories by keywords
-        if "revenue" in line:
+        if "revenue" in line or "sales" in line or "income" in line:
             out["revenue"] = value
 
-        elif "sales" in line:
-            out["revenue"] = value
-
-        elif "expenses" in line:
+        elif "expense" in line or "expenses" in line or "opex" in line:
             out["expenses"] = value
 
-        elif "operating expense" in line:
-            out["expenses"] = value
-
-        elif "net income" in line:
-            out["net_income"] = value
-
-        elif "profit" in line:
+        elif "net income" in line or "net profit" in line or "profit" in line:
             out["net_income"] = value
 
         elif "cash" in line:
             out["cash"] = value
 
-        elif "liabilit" in line:
+        elif "liabil" in line or "debt" in line:
             out["liabilities"] = value
 
         elif "assets" in line:
@@ -124,7 +108,7 @@ def extract_numbers(text):
         elif "equity" in line:
             out["equity"] = value
 
-        elif "accounts receivable" in line:
+        elif "accounts receivable" in line or "ar" in line:
             out["ar"] = value
 
     return out
@@ -157,14 +141,14 @@ def detect_type(text):
     return "pl"
 
 # =====================================================
-# ADD REPORT (FIXED STATE HANDLING)
+# ADD REPORT
 # =====================================================
 if add_btn:
 
     text = st.session_state.draft_input
 
     if not text.strip() and not uploaded_file:
-        st.warning("No report detected")
+        st.warning("No input detected")
         st.stop()
 
     if uploaded_file:
@@ -184,9 +168,7 @@ if add_btn:
     })
 
     st.session_state.draft_input = ""
-
     st.success("Report added")
-
     st.rerun()
 
 # =====================================================
@@ -222,20 +204,17 @@ def generate_insights(latest):
     liabilities = latest.get("liabilities")
     ar = latest.get("ar")
 
-    # ---------------- PROFITABILITY ----------------
     if revenue and expenses:
         profit = revenue - expenses
-
         insights["profitability"] = {
-            "summary": f"Revenue is ${revenue:,.0f} and expenses are ${expenses:,.0f}, resulting in about ${profit:,.0f} in profit.",
+            "summary": f"Revenue is ${revenue:,.0f} and expenses are ${expenses:,.0f}, resulting in about ${profit:,.0f} profit.",
             "evidence": [
                 f"Revenue: ${revenue:,.0f}",
                 f"Expenses: ${expenses:,.0f}",
-                f"Estimated Profit: ${profit:,.0f}"
+                f"Profit: ${profit:,.0f}"
             ]
         }
 
-    # ---------------- CASH ----------------
     if cash or ar:
         insights["cash"] = {
             "summary": f"Cash is ${cash:,.0f} with ${ar:,.0f} in accounts receivable.",
@@ -245,7 +224,6 @@ def generate_insights(latest):
             ]
         }
 
-    # ---------------- STABILITY ----------------
     if cash and liabilities:
         insights["stability"] = {
             "summary": f"Cash is ${cash:,.0f} compared to ${liabilities:,.0f} in liabilities.",
@@ -281,3 +259,5 @@ if run_btn:
 
     st.markdown("---")
     st.caption(f"Reports stored: {len(st.session_state.memory['reports'])}")
+
+    st.session_state.draft_input = ""
