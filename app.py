@@ -13,63 +13,49 @@ st.set_page_config(
 )
 
 # =====================================================
-# STYLE
-# =====================================================
-st.markdown("""
-<style>
-.stApp {
-    background-color: #0E1117;
-    color: #FAFAFA;
-}
-html, body, p, span, div {
-    color: #FAFAFA !important;
-}
-.block-container {
-    padding-top: 2rem;
-}
-.title {
-    font-size: 42px;
-    font-weight: 700;
-    text-align: center;
-}
-.subtitle {
-    text-align: center;
-    color: #9CA3AF;
-    margin-bottom: 2rem;
-}
-.box {
-    background-color: #161B22;
-    padding: 1rem;
-    border-radius: 12px;
-    margin-bottom: 1rem;
-    border: 1px solid rgba(255,255,255,0.08);
-}
-</style>
-""", unsafe_allow_html=True)
-
-# =====================================================
-# HEADER
-# =====================================================
-st.markdown("<div class='title'>Business Pulse</div>", unsafe_allow_html=True)
-st.markdown("<div class='subtitle'>Build your business story from financial reports</div>", unsafe_allow_html=True)
-
-# =====================================================
-# SESSION STATE (CORE MEMORY)
+# SESSION MEMORY
 # =====================================================
 if "memory" not in st.session_state:
     st.session_state.memory = {
-        "pl_reports": [],
-        "bs_reports": [],
-        "csv_reports": []
+        "reports": []
     }
 
 if "input_text" not in st.session_state:
     st.session_state.input_text = ""
 
 # =====================================================
-# PARSER
+# UI HEADER
 # =====================================================
+st.title("Business Pulse")
+st.subheader("Paste financial reports → Get instant business understanding")
 
+# =====================================================
+# INPUT SECTION
+# =====================================================
+report_type = st.selectbox(
+    "Select report type (optional - system can auto-detect)",
+    ["Auto Detect", "Profit & Loss", "Balance Sheet", "CSV"]
+)
+
+user_input = st.text_area(
+    "Paste your financial report here",
+    height=200,
+    key="input_text"
+)
+
+uploaded_file = st.file_uploader("Or upload CSV", type=["csv"])
+
+col1, col2 = st.columns(2)
+
+with col1:
+    add_btn = st.button("➕ Add Report")
+
+with col2:
+    run_btn = st.button("🚀 Generate Business Snapshot")
+
+# =====================================================
+# HELPERS
+# =====================================================
 def clean_number(value):
     try:
         value = str(value).replace(",", "").replace("$", "").strip()
@@ -78,159 +64,221 @@ def clean_number(value):
         return None
 
 
-def parse_text(text):
+def extract_numbers(text):
     """
-    Extracts key financial signals from messy text.
+    Very simple extraction for MVP.
+    Works on messy text.
     """
-    if not text:
-        return {}
-
     text = text.lower()
 
     patterns = {
         "revenue": r"(revenue|sales|income)[^\d]*([\d,\.]+)",
         "expenses": r"(expenses|expense|opex)[^\d]*([\d,\.]+)",
-        "cogs": r"(cogs)[^\d]*([\d,\.]+)",
         "net_income": r"(net income|net profit|profit)[^\d]*([\d,\.]+)",
         "cash": r"(cash)[^\d]*([\d,\.]+)",
         "assets": r"(assets)[^\d]*([\d,\.]+)",
         "liabilities": r"(liabilities|debt)[^\d]*([\d,\.]+)",
         "equity": r"(equity)[^\d]*([\d,\.]+)",
+        "ar": r"(accounts receivable|a/r|ar)[^\d]*([\d,\.]+)"
     }
 
     out = {}
-
-    for k, p in patterns.items():
-        m = re.search(p, text)
-        if m:
-            out[k] = clean_number(m.group(2))
+    for k, pattern in patterns.items():
+        match = re.search(pattern, text)
+        if match:
+            out[k] = clean_number(match.group(2))
 
     return out
 
 
-# =====================================================
-# MODEL BUILDER (ACCUMULATED MEMORY)
-# =====================================================
+def parse_csv(file):
+    try:
+        df = pd.read_csv(file)
+        df.columns = df.columns.str.lower()
 
-def build_model(memory):
+        row = {}
+        for col in df.columns:
+            if "revenue" in col:
+                row["revenue"] = df[col].sum()
+            if "expense" in col:
+                row["expenses"] = df[col].sum()
+            if "profit" in col:
+                row["net_income"] = df[col].sum()
+        return row
+    except:
+        return {}
+
+
+def detect_type(text):
+    text = text.lower()
+    if "balance" in text:
+        return "bs"
+    if "cash" in text or "liabil" in text:
+        return "bs"
+    return "pl"
+
+
+# =====================================================
+# ADD REPORT
+# =====================================================
+if add_btn and (user_input.strip() or uploaded_file):
+
+    if uploaded_file:
+        parsed = parse_csv(uploaded_file)
+        report_kind = "csv"
+    else:
+        parsed = extract_numbers(user_input)
+        report_kind = detect_type(user_input)
+
+    st.session_state.memory["reports"].append({
+        "type": report_kind,
+        "data": parsed,
+        "raw": user_input,
+        "time": datetime.now()
+    })
+
+    st.session_state.input_text = ""
+    st.success("Report added to Business Pulse")
+
+    st.rerun()
+
+# =====================================================
+# BUILD MODEL
+# =====================================================
+def build_model(reports):
     model = {}
 
-    all_reports = (
-        memory["pl_reports"] +
-        memory["bs_reports"] +
-        memory["csv_reports"]
-    )
+    for r in reports:
+        for k, v in r["data"].items():
+            if v is None:
+                continue
 
-    # Merge all extracted signals
-    for r in all_reports:
-        model.update(r)
+            if k not in model:
+                model[k] = []
 
-    return model
+            model[k].append(v)
+
+    # latest values
+    latest = {}
+    for k, values in model.items():
+        latest[k] = values[-1]
+
+    return model, latest
 
 
 # =====================================================
 # INSIGHT ENGINE
 # =====================================================
-
-def generate_insights(model):
+def generate_insights(model, latest):
     insights = {}
 
-    revenue = model.get("revenue")
-    expenses = model.get("expenses")
+    revenue = latest.get("revenue")
+    expenses = latest.get("expenses")
+    profit = latest.get("net_income")
 
-    if revenue is not None and expenses is not None:
-        profit = revenue - expenses
-        insights["profit"] = profit
-        insights["making_money"] = profit > 0
-        insights["expense_ratio"] = expenses / revenue if revenue else 0
+    ar = latest.get("ar")
+    cash = latest.get("cash")
+    liabilities = latest.get("liabilities")
 
-    cash = model.get("cash")
-    liabilities = model.get("liabilities")
+    evidence = []
 
-    if cash is not None and liabilities is not None:
-        insights["healthy"] = cash > liabilities
+    # -----------------------------
+    # PROFITABILITY
+    # -----------------------------
+    if revenue and expenses:
+        profit_calc = revenue - expenses
+
+        insights["profitability"] = {
+            "summary": f"Revenue is ${revenue:,.0f} and expenses are ${expenses:,.0f}, resulting in approximately ${profit_calc:,.0f} in operating profit.",
+            "why": "Profit is driven by the gap between revenue and expenses.",
+            "meaning": "Wider gap = stronger profitability.",
+            "evidence": [
+                f"Revenue: ${revenue:,.0f}",
+                f"Expenses: ${expenses:,.0f}",
+                f"Estimated Profit: ${profit_calc:,.0f}"
+            ]
+        }
+
+    # -----------------------------
+    # CASH / AR
+    # -----------------------------
+    if cash or ar:
+        insights["cash"] = {
+            "summary": f"Cash position is ${cash:,.0f} with ${ar:,.0f} tied up in receivables.",
+            "why": "Cash is affected by timing of collections.",
+            "meaning": "High receivables can create cash pressure even when profitable.",
+            "evidence": [
+                f"Cash: ${cash:,.0f}",
+                f"Accounts Receivable: ${ar:,.0f}"
+            ]
+        }
+
+    # -----------------------------
+    # STABILITY
+    # -----------------------------
+    if liabilities and cash:
+        insights["stability"] = {
+            "summary": f"Liabilities are ${liabilities:,.0f} compared to ${cash:,.0f} cash on hand.",
+            "why": "Debt levels impact financial flexibility.",
+            "meaning": "Higher liabilities reduce short-term stability.",
+            "evidence": [
+                f"Liabilities: ${liabilities:,.0f}",
+                f"Cash: ${cash:,.0f}"
+            ]
+        }
 
     return insights
 
 
 # =====================================================
-# UI HEADER
+# RUN SNAPSHOT
 # =====================================================
-st.markdown("## Input Financial Report")
+if run_btn:
 
-col1, col2 = st.columns([3, 1])
+    if not st.session_state.memory["reports"]:
+        st.warning("No reports added yet.")
+        st.stop()
 
-with col1:
-    report_type = st.selectbox(
-        "Report type",
-        ["Profit & Loss", "Balance Sheet"]
-    )
+    model, latest = build_model(st.session_state.memory["reports"])
+    insights = generate_insights(model, latest)
 
-    user_input = st.text_area(
-        "Paste financial data",
-        height=180,
-        key="input_text"
-    )
+    # =================================================
+    # BUSINESS SNAPSHOT
+    # =================================================
+    st.markdown("## 👀 Business Snapshot")
 
-with col2:
-    st.write("")
-    st.write("")
+    if "profitability" in insights:
+        st.markdown("### 💰 Profitability")
+        st.write(insights["profitability"]["summary"])
+        st.markdown("**Why:** " + insights["profitability"]["why"])
+        st.markdown("**Meaning:** " + insights["profitability"]["meaning"])
 
-    add = st.button("➕ Add Report")
-    run = st.button("🚀 Generate Pulse")
+        st.markdown("**Evidence:**")
+        for e in insights["profitability"]["evidence"]:
+            st.write("- " + e)
 
+    if "cash" in insights:
+        st.markdown("### 🏦 Cash Position")
+        st.write(insights["cash"]["summary"])
+        st.markdown("**Why:** " + insights["cash"]["why"])
+        st.markdown("**Meaning:** " + insights["cash"]["meaning"])
 
-# =====================================================
-# ADD REPORT LOGIC (ACCUMULATION + CLEAR INPUT)
-# =====================================================
+        st.markdown("**Evidence:**")
+        for e in insights["cash"]["evidence"]:
+            st.write("- " + e)
 
-if add and user_input.strip():
+    if "stability" in insights:
+        st.markdown("### ⚖️ Financial Stability")
+        st.write(insights["stability"]["summary"])
+        st.markdown("**Why:** " + insights["stability"]["why"])
+        st.markdown("**Meaning:** " + insights["stability"]["meaning"])
 
-    parsed = parse_text(user_input)
+        st.markdown("**Evidence:**")
+        for e in insights["stability"]["evidence"]:
+            st.write("- " + e)
 
-    if report_type == "Profit & Loss":
-        st.session_state.memory["pl_reports"].append(parsed)
-        st.success("P&L added to business memory")
-
-    else:
-        st.session_state.memory["bs_reports"].append(parsed)
-        st.success("Balance Sheet added to business memory")
-
-    # CLEAR INPUT (UX requirement)
-    st.session_state.input_text = ""
-    st.rerun()
-
-
-# =====================================================
-# RENDER BUSINESS PULSE
-# =====================================================
-
-if run:
-
-    model = build_model(st.session_state.memory)
-    insights = generate_insights(model)
-
-    st.markdown("## Business Pulse")
-
-    st.markdown("### 💰 Am I Making Money?")
-    if insights.get("making_money") is True:
-        st.success(f"Yes — profit is ${insights['profit']:,.0f}")
-    elif insights.get("making_money") is False:
-        st.error(f"No — loss of ${abs(insights['profit']):,.0f}")
-    else:
-        st.info("Not enough data yet.")
-
-    st.markdown("### 💸 Where Is My Money Going?")
-    if "expense_ratio" in insights:
-        st.write(f"Expenses are {insights['expense_ratio']:.0%} of revenue")
-
-    st.markdown("### 🏦 Is My Business Healthy?")
-    if "healthy" in insights:
-        if insights["healthy"]:
-            st.success("Cash is stronger than liabilities")
-        else:
-            st.warning("Liabilities exceed cash")
-
-    st.markdown("### 📊 Memory Status")
-    st.write(f"P&L reports: {len(st.session_state.memory['pl_reports'])}")
-    st.write(f"Balance sheets: {len(st.session_state.memory['bs_reports'])}")
+    # =================================================
+    # MEMORY DEBUG (MINIMAL, TEMPORARY)
+    # =================================================
+    st.markdown("---")
+    st.caption(f"Reports stored: {len(st.session_state.memory['reports'])}")
