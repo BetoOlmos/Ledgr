@@ -13,251 +13,126 @@ st.set_page_config(
 )
 
 # =====================================================
-# SESSION MEMORY
+# MEMORY
 # =====================================================
-if "memory" not in st.session_state:
-    st.session_state.memory = {
-        "reports": []
-    }
+if "reports" not in st.session_state:
+    st.session_state.reports = []
 
-if "draft_input" not in st.session_state:
-    st.session_state.draft_input = ""
+if "draft" not in st.session_state:
+    st.session_state.draft = ""
 
 # =====================================================
-# UI HEADER
+# UI
 # =====================================================
 st.title("Business Pulse")
-st.subheader("Paste financial reports and get business insights")
 
-# =====================================================
-# INPUT SECTION
-# =====================================================
-report_type = st.selectbox(
-    "Report type (optional)",
-    ["Auto Detect", "Profit & Loss", "Balance Sheet", "CSV"]
-)
-
-st.session_state.draft_input = st.text_area(
+st.session_state.draft = st.text_area(
     "Paste financial report",
-    value=st.session_state.draft_input,
+    value=st.session_state.draft,
     height=200
 )
 
 uploaded_file = st.file_uploader("Or upload CSV", type=["csv"])
 
-col1, col2 = st.columns(2)
+add_btn = st.button("Add Report")
+run_btn = st.button("Generate Snapshot")
 
-with col1:
-    add_btn = st.button("Add Report")
-
-with col2:
-    run_btn = st.button("Generate Business Snapshot")
+st.write("DEBUG draft length:", len(st.session_state.draft))
 
 # =====================================================
-# PARSER
+# PARSER (SAFE + SIMPLE)
 # =====================================================
 def extract_numbers(text):
     if not text:
         return {}
 
-    text = text.lower()
-
     out = {}
 
-    lines = text.split("\n")
+    for line in text.split("\n"):
+        line = line.lower()
 
-    def clean(val):
+        nums = re.findall(r"[\$]?\d[\d,]*\.?\d*", line)
+        if not nums:
+            continue
+
         try:
-            return float(val.replace("$", "").replace(",", "").strip())
+            value = float(nums[-1].replace("$", "").replace(",", ""))
         except:
-            return None
-
-    for line in lines:
-        line = line.lower().strip()
-        if not line:
             continue
 
-        line = line.replace(":", " ")
-        parts = line.split()
-
-        if len(parts) < 2:
-            continue
-
-        value = clean(parts[-1])
-        if value is None:
-            continue
-
-        if "revenue" in line or "sales" in line or "income" in line:
+        if "revenue" in line or "sales" in line:
             out["revenue"] = value
-
-        elif "expense" in line or "expenses" in line or "opex" in line:
+        elif "expense" in line:
             out["expenses"] = value
-
-        elif "net income" in line or "net profit" in line or "profit" in line:
+        elif "profit" in line:
             out["net_income"] = value
-
         elif "cash" in line:
             out["cash"] = value
-
-        elif "liabil" in line or "debt" in line:
+        elif "liabil" in line:
             out["liabilities"] = value
-
         elif "assets" in line:
             out["assets"] = value
-
-        elif "equity" in line:
-            out["equity"] = value
-
-        elif "accounts receivable" in line or "ar" in line:
+        elif "ar" in line or "receivable" in line:
             out["ar"] = value
 
     return out
 
-
-def parse_csv(file):
-    try:
-        df = pd.read_csv(file)
-        df.columns = df.columns.str.lower()
-
-        row = {}
-
-        for col in df.columns:
-            if "revenue" in col:
-                row["revenue"] = df[col].sum()
-            if "expense" in col:
-                row["expenses"] = df[col].sum()
-            if "profit" in col:
-                row["net_income"] = df[col].sum()
-
-        return row
-    except:
-        return {}
-
-
-def detect_type(text):
-    text = text.lower()
-    if "balance" in text:
-        return "bs"
-    return "pl"
-
 # =====================================================
-# ADD REPORT
+# ADD REPORT (DEBUG HEAVY)
 # =====================================================
 if add_btn:
 
-    text = st.session_state.draft_input
+    st.write("BUTTON PRESSED")
 
-    if not text.strip() and not uploaded_file:
-        st.warning("No input detected")
+    text = st.session_state.draft
+
+    st.write("INPUT RECEIVED:")
+    st.write(text)
+
+    if not text.strip():
+        st.warning("EMPTY INPUT")
         st.stop()
 
-    if uploaded_file:
-        parsed = parse_csv(uploaded_file)
-        report_kind = "csv"
-        raw_text = ""
-    else:
-        parsed = extract_numbers(text)
-        report_kind = detect_type(text)
-        raw_text = text
+    parsed = extract_numbers(text)
 
-    st.session_state.memory["reports"].append({
-        "type": report_kind,
-        "data": parsed,
-        "raw": raw_text,
-        "time": datetime.now()
-    })
+    st.write("PARSED OUTPUT:")
+    st.write(parsed)
 
-    st.session_state.draft_input = ""
-    st.success("Report added")
+    st.session_state.reports.append(parsed)
+
+    st.write("REPORTS STORED:")
+    st.write(st.session_state.reports)
+
+    st.session_state.draft = ""
+
+    st.success("ADDED")
+
     st.rerun()
 
 # =====================================================
-# BUILD MODEL
-# =====================================================
-def build_model(reports):
-    model = {}
-
-    for r in reports:
-        for k, v in r["data"].items():
-            if v is None:
-                continue
-
-            if k not in model:
-                model[k] = []
-
-            model[k].append(v)
-
-    latest = {k: v[-1] for k, v in model.items()}
-
-    return model, latest
-
-# =====================================================
-# INSIGHT ENGINE
-# =====================================================
-def generate_insights(latest):
-
-    insights = {}
-
-    revenue = latest.get("revenue")
-    expenses = latest.get("expenses")
-    cash = latest.get("cash")
-    liabilities = latest.get("liabilities")
-    ar = latest.get("ar")
-
-    if revenue and expenses:
-        profit = revenue - expenses
-        insights["profitability"] = {
-            "summary": f"Revenue is ${revenue:,.0f} and expenses are ${expenses:,.0f}, resulting in about ${profit:,.0f} profit.",
-            "evidence": [
-                f"Revenue: ${revenue:,.0f}",
-                f"Expenses: ${expenses:,.0f}",
-                f"Profit: ${profit:,.0f}"
-            ]
-        }
-
-    if cash or ar:
-        insights["cash"] = {
-            "summary": f"Cash is ${cash:,.0f} with ${ar:,.0f} in accounts receivable.",
-            "evidence": [
-                f"Cash: ${cash:,.0f}",
-                f"Accounts Receivable: ${ar:,.0f}"
-            ]
-        }
-
-    if cash and liabilities:
-        insights["stability"] = {
-            "summary": f"Cash is ${cash:,.0f} compared to ${liabilities:,.0f} in liabilities.",
-            "evidence": [
-                f"Cash: ${cash:,.0f}",
-                f"Liabilities: ${liabilities:,.0f}"
-            ]
-        }
-
-    return insights
-
-# =====================================================
-# RUN SNAPSHOT
+# SNAPSHOT
 # =====================================================
 if run_btn:
 
-    if not st.session_state.memory["reports"]:
-        st.warning("No reports added yet")
+    st.write("RUN SNAPSHOT PRESSED")
+
+    if not st.session_state.reports:
+        st.warning("NO REPORTS")
         st.stop()
 
-    model, latest = build_model(st.session_state.memory["reports"])
-    insights = generate_insights(latest)
+    latest = st.session_state.reports[-1]
 
     st.markdown("## Business Snapshot")
 
-    for key, section in insights.items():
-        st.markdown(f"### {key.capitalize()}")
-        st.write(section["summary"])
+    revenue = latest.get("revenue")
+    expenses = latest.get("expenses")
 
-        st.markdown("Evidence:")
-        for e in section["evidence"]:
-            st.write("- " + e)
+    if revenue and expenses:
+        profit = revenue - expenses
 
-    st.markdown("---")
-    st.caption(f"Reports stored: {len(st.session_state.memory['reports'])}")
+        st.write("Revenue:", revenue)
+        st.write("Expenses:", expenses)
+        st.write("Profit:", profit)
 
-    st.session_state.draft_input = ""
+    st.write("RAW MEMORY:")
+    st.write(st.session_state.reports)
