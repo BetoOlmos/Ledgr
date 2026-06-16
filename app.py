@@ -17,18 +17,24 @@ if "reports" not in st.session_state:
     st.session_state.reports = []
 
 # =====================================================
+# FORMAT HELPER
+# =====================================================
+def fmt(value):
+    if value is None:
+        return "N/A"
+    return f"${value:,.0f}"
+
+# =====================================================
 # TITLE
 # =====================================================
 st.title("Business Pulse")
 st.write("Paste financial reports → Generate business understanding")
 
 # =====================================================
-# INPUT FORM (THIS FIXES EVERYTHING)
+# INPUT FORM (STABLE STREAMLIT PATTERN)
 # =====================================================
 with st.form("report_form"):
-
     text = st.text_area("Paste financial report", height=200)
-
     submitted = st.form_submit_button("Add Report")
 
 # =====================================================
@@ -52,7 +58,7 @@ def extract_numbers(text):
         except:
             continue
 
-        if "revenue" in line_lower or "sales" in line_lower:
+        if "revenue" in line_lower or "sales" in line_lower or "income" in line_lower:
             out["revenue"] = value
 
         elif "expense" in line_lower:
@@ -95,7 +101,7 @@ if submitted:
     st.success("Report added")
 
 # =====================================================
-# SNAPSHOT BUTTON
+# SNAPSHOT
 # =====================================================
 if st.button("Generate Business Snapshot"):
 
@@ -116,22 +122,23 @@ if st.button("Generate Business Snapshot"):
     # PROFITABILITY
     if revenue and expenses:
         profit = revenue - expenses
+
         st.subheader("Profitability")
-        st.write(f"Revenue: ${revenue:,.0f}")
-        st.write(f"Expenses: ${expenses:,.0f}")
-        st.write(f"Estimated Profit: ${profit:,.0f}")
+        st.write(f"Revenue: {fmt(revenue)}")
+        st.write(f"Expenses: {fmt(expenses)}")
+        st.write(f"Estimated Profit: {fmt(profit)}")
 
     # CASH
     if cash or ar:
         st.subheader("Cash Position")
-        st.write(f"Cash: ${cash:,.0f}")
-        st.write(f"Accounts Receivable: ${ar:,.0f}")
+        st.write(f"Cash: {fmt(cash)}")
+        st.write(f"Accounts Receivable: {fmt(ar)}")
 
     # STABILITY
     if cash and liabilities:
         st.subheader("Financial Stability")
-        st.write(f"Cash: ${cash:,.0f}")
-        st.write(f"Liabilities: ${liabilities:,.0f}")
+        st.write(f"Cash: {fmt(cash)}")
+        st.write(f"Liabilities: {fmt(liabilities)}")
 
     st.write("---")
     st.write("Reports stored:", len(st.session_state.reports))
