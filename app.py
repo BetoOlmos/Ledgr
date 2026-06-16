@@ -5,10 +5,7 @@ from datetime import datetime
 # =====================================================
 # CONFIG
 # =====================================================
-st.set_page_config(
-    page_title="Business Pulse",
-    layout="wide"
-)
+st.set_page_config(page_title="Business Pulse", layout="wide")
 
 # =====================================================
 # MEMORY
@@ -16,26 +13,16 @@ st.set_page_config(
 if "reports" not in st.session_state:
     st.session_state.reports = []
 
+if "input_key" not in st.session_state:
+    st.session_state.input_key = 0
+
 # =====================================================
-# FORMAT HELPER
+# FORMAT
 # =====================================================
-def fmt(value):
-    if value is None:
+def fmt(v):
+    if v is None:
         return "N/A"
-    return f"${value:,.0f}"
-
-# =====================================================
-# TITLE
-# =====================================================
-st.title("Business Pulse")
-st.write("Paste financial reports → Generate business understanding")
-
-# =====================================================
-# INPUT FORM (STABLE STREAMLIT PATTERN)
-# =====================================================
-with st.form("report_form"):
-    text = st.text_area("Paste financial report", height=200)
-    submitted = st.form_submit_button("Add Report")
+    return f"${v:,.0f}"
 
 # =====================================================
 # PARSER
@@ -47,44 +34,61 @@ def extract_numbers(text):
     out = {}
 
     for line in text.split("\n"):
-        line_lower = line.lower()
+        l = line.lower()
 
-        nums = re.findall(r"[\$]?\d[\d,]*\.?\d*", line_lower)
+        nums = re.findall(r"[\$]?\d[\d,]*\.?\d*", l)
         if not nums:
             continue
 
         try:
-            value = float(nums[-1].replace("$", "").replace(",", ""))
+            val = float(nums[-1].replace("$", "").replace(",", ""))
         except:
             continue
 
-        if "revenue" in line_lower or "sales" in line_lower or "income" in line_lower:
-            out["revenue"] = value
-
-        elif "expense" in line_lower:
-            out["expenses"] = value
-
-        elif "profit" in line_lower:
-            out["net_income"] = value
-
-        elif "cash" in line_lower:
-            out["cash"] = value
-
-        elif "liabil" in line_lower:
-            out["liabilities"] = value
-
-        elif "asset" in line_lower:
-            out["assets"] = value
-
-        elif "receivable" in line_lower or "ar" in line_lower:
-            out["ar"] = value
+        if "revenue" in l or "sales" in l or "income" in l:
+            out["revenue"] = val
+        elif "expense" in l:
+            out["expenses"] = val
+        elif "profit" in l:
+            out["net_income"] = val
+        elif "cash" in l:
+            out["cash"] = val
+        elif "liabil" in l:
+            out["liabilities"] = val
+        elif "asset" in l:
+            out["assets"] = val
+        elif "receivable" in l or "ar" in l:
+            out["ar"] = val
 
     return out
 
 # =====================================================
-# ADD REPORT
+# HEADER
 # =====================================================
-if submitted:
+st.title("Business Pulse")
+st.write("Paste financial reports → Get business understanding")
+
+# =====================================================
+# INPUT (FORCED RESET MECHANISM)
+# =====================================================
+text = st.text_area(
+    "Paste financial report",
+    key=f"input_{st.session_state.input_key}",
+    height=200
+)
+
+col1, col2 = st.columns(2)
+
+with col1:
+    add_btn = st.button("Add Report")
+
+with col2:
+    run_btn = st.button("Generate Business Snapshot")
+
+# =====================================================
+# ADD REPORT (AUTO CLEAR INPUT)
+# =====================================================
+if add_btn:
 
     if not text.strip():
         st.warning("No input detected")
@@ -98,47 +102,90 @@ if submitted:
         "time": datetime.now()
     })
 
+    # FORCE CLEAR INPUT
+    st.session_state.input_key += 1
+
     st.success("Report added")
+    st.rerun()
+
+# =====================================================
+# BUILD LATEST MODEL
+# =====================================================
+def latest_data():
+    if not st.session_state.reports:
+        return {}
+
+    return st.session_state.reports[-1]["data"]
+
+# =====================================================
+# INSIGHTS ENGINE (UPGRADED)
+# =====================================================
+def insights(d):
+
+    r = d.get("revenue")
+    e = d.get("expenses")
+    c = d.get("cash")
+    l = d.get("liabilities")
+    ar = d.get("ar")
+
+    output = {}
+
+    # PROFITABILITY
+    if r and e:
+        p = r - e
+        output["Profitability"] = {
+            "summary": f"Revenue is {fmt(r)} while expenses are {fmt(e)}, leaving about {fmt(p)} profit.",
+            "evidence": [
+                f"Revenue: {fmt(r)}",
+                f"Expenses: {fmt(e)}",
+                f"Profit: {fmt(p)}"
+            ]
+        }
+
+    # CASH FLOW PRESSURE
+    if c or ar:
+        output["Cash Position"] = {
+            "summary": f"Cash is {fmt(c)} with {fmt(ar)} tied in receivables.",
+            "evidence": [
+                f"Cash: {fmt(c)}",
+                f"Accounts Receivable: {fmt(ar)}"
+            ]
+        }
+
+    # FINANCIAL STABILITY
+    if c and l:
+        output["Stability"] = {
+            "summary": f"Cash of {fmt(c)} compared to liabilities of {fmt(l)} shows current financial position.",
+            "evidence": [
+                f"Cash: {fmt(c)}",
+                f"Liabilities: {fmt(l)}"
+            ]
+        }
+
+    return output
 
 # =====================================================
 # SNAPSHOT
 # =====================================================
-if st.button("Generate Business Snapshot"):
+if run_btn:
 
-    if not st.session_state.reports:
+    data = latest_data()
+
+    if not data:
         st.warning("No reports yet")
         st.stop()
 
-    latest = st.session_state.reports[-1]["data"]
+    result = insights(data)
 
     st.markdown("## Business Snapshot")
 
-    revenue = latest.get("revenue")
-    expenses = latest.get("expenses")
-    cash = latest.get("cash")
-    liabilities = latest.get("liabilities")
-    ar = latest.get("ar")
+    for k, v in result.items():
+        st.subheader(k)
+        st.write(v["summary"])
 
-    # PROFITABILITY
-    if revenue and expenses:
-        profit = revenue - expenses
-
-        st.subheader("Profitability")
-        st.write(f"Revenue: {fmt(revenue)}")
-        st.write(f"Expenses: {fmt(expenses)}")
-        st.write(f"Estimated Profit: {fmt(profit)}")
-
-    # CASH
-    if cash or ar:
-        st.subheader("Cash Position")
-        st.write(f"Cash: {fmt(cash)}")
-        st.write(f"Accounts Receivable: {fmt(ar)}")
-
-    # STABILITY
-    if cash and liabilities:
-        st.subheader("Financial Stability")
-        st.write(f"Cash: {fmt(cash)}")
-        st.write(f"Liabilities: {fmt(liabilities)}")
+        st.write("Evidence:")
+        for x in v["evidence"]:
+            st.write("- " + x)
 
     st.write("---")
     st.write("Reports stored:", len(st.session_state.reports))
