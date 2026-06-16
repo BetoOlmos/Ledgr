@@ -67,6 +67,7 @@ def extract_numbers(text):
 
     return out
 
+
 def parse_csv(file):
     df = pd.read_csv(file)
     df.columns = df.columns.str.lower()
@@ -148,17 +149,8 @@ def get_models():
     return latest, prev
 
 # =====================================================
-# INSIGHT ENGINE (FULL CFO STRUCTURE)
+# INSIGHT ENGINE (CFO STYLE FIXED)
 # =====================================================
-def build_section(title, what, why, why_matters, evidence):
-    return {
-        "title": title,
-        "what": what,
-        "why": why,
-        "why_matters": why_matters,
-        "evidence": evidence
-    }
-
 def build_insights(latest, prev):
 
     r = latest.get("revenue")
@@ -183,119 +175,126 @@ def build_insights(latest, prev):
     profit_margin = safe_ratio(p, r)
     coverage = safe_ratio(c, l)
 
+    coverage_display = f"{coverage:.2f}" if coverage is not None else "N/A"
+
     sections = []
 
     # =================================================
-    # 👀 BUSINESS SNAPSHOT (GLOBAL STORY)
+    # 👀 BUSINESS SNAPSHOT
     # =================================================
     story = []
 
     if rev_d is not None:
-        story.append(f"Revenue changed by {fmt(rev_d)}")
+        story.append(f"Revenue changed by {fmt(rev_d)}.")
 
     if prof_d is not None:
-        story.append(f"Profit changed by {fmt(prof_d)}")
+        story.append(f"Profit changed by {fmt(prof_d)}.")
 
     if exp_d is not None:
-        story.append(f"Expenses moved by {fmt(exp_d)}")
+        story.append(f"Expenses moved by {fmt(exp_d)}.")
 
     if ar_d is not None:
-        story.append(f"Accounts receivable changed by {fmt(ar_d)}")
+        story.append(f"Accounts receivable changed by {fmt(ar_d)}.")
 
     if r and p:
-        story.append(
-            f"Revenue is {fmt(r)} with profit of {fmt(p)}, "
-            f"indicating {'strong' if profit_margin and profit_margin > 0.15 else 'moderate' if profit_margin and profit_margin > 0.05 else 'weak'} margin efficiency."
+        efficiency = (
+            "strong" if profit_margin and profit_margin > 0.15
+            else "moderate" if profit_margin and profit_margin > 0.05
+            else "weak"
         )
 
-    sections.append(build_section(
-        "👀 Business Snapshot",
-        " ".join(story),
-        "This is the combined movement of your business performance across revenue, profit, expenses, and cash flow.",
-        "It shows whether growth is healthy or being absorbed by costs and cash pressure.",
-        [
+        story.append(
+            f"Revenue is {fmt(r)} with profit of {fmt(p)}, showing {efficiency} margin efficiency."
+        )
+
+    sections.append({
+        "title": "👀 Business Snapshot",
+        "what": " ".join(story),
+        "why": "This combines revenue, profit, expenses, and cash movement into a single business view.",
+        "why_matters": "It shows whether growth is healthy or being absorbed by cost structure or cash pressure.",
+        "evidence": [
             f"Revenue: {fmt(r)}",
             f"Profit: {fmt(p)}",
             f"Expenses: {fmt(e)}",
             f"Cash: {fmt(c)}",
             f"AR: {fmt(ar)}"
         ]
-    ))
+    })
 
     # =================================================
     # 💰 PROFITABILITY
     # =================================================
-    sections.append(build_section(
-        "💰 Profitability",
-        f"Revenue is {fmt(r)} and expenses are {fmt(e)}, resulting in profit of {fmt(p)}. Change in profit: {fmt(prof_d)}.",
-        "Profit reflects how efficiently revenue is converted after costs.",
-        "If expenses grow faster than revenue, profitability weakens even in growth periods.",
-        [
+    sections.append({
+        "title": "💰 Profitability",
+        "what": f"Revenue is {fmt(r)} and expenses are {fmt(e)}, resulting in profit of {fmt(p)}. Profit changed by {fmt(prof_d)}.",
+        "why": "Profit reflects how efficiently revenue converts into actual earnings.",
+        "why_matters": "Strong revenue with weak profit signals cost pressure or inefficiency.",
+        "evidence": [
             f"Revenue Change: {fmt(rev_d)}",
             f"Expense Change: {fmt(exp_d)}",
             f"Profit Change: {fmt(prof_d)}"
         ]
-    ))
+    })
 
     # =================================================
     # 📈 GROWTH
     # =================================================
-    sections.append(build_section(
-        "📈 Growth",
-        f"Revenue is {fmt(r)} with change of {fmt(rev_d)}.",
-        "Revenue is the primary driver of business expansion.",
-        "Growth without profit improvement signals cost inefficiency.",
-        [
+    sections.append({
+        "title": "📈 Growth",
+        "what": f"Revenue is {fmt(r)} with change of {fmt(rev_d)}.",
+        "why": "Revenue is the primary driver of business expansion.",
+        "why_matters": "Growth without profit improvement may indicate rising cost structure.",
+        "evidence": [
             f"Revenue Change: {fmt(rev_d)}"
         ]
-    ))
+    })
 
     # =================================================
     # 💸 EXPENSES
     # =================================================
-    sections.append(build_section(
-        "💸 Expenses",
-        f"Expenses are {fmt(e)} with change of {fmt(exp_d)}.",
-        "Expenses determine operational efficiency.",
-        "Rising expenses without revenue growth compress margins and cash flow.",
-        [
+    sections.append({
+        "title": "💸 Expenses",
+        "what": f"Expenses are {fmt(e)} with change of {fmt(exp_d)}.",
+        "why": "Expenses determine operational efficiency.",
+        "why_matters": "Rising expenses without revenue growth compress margins.",
+        "evidence": [
             f"Expense Change: {fmt(exp_d)}"
         ]
-    ))
+    })
 
     # =================================================
-    # 🏦 CASH POSITION (ALWAYS SHOWN)
+    # 🏦 CASH POSITION
     # =================================================
-    sections.append(build_section(
-        "🏦 Cash Position",
-        f"Cash is {fmt(c)} with {fmt(ar)} in receivables. Change in cash: {fmt(cash_d)}.",
-        "Cash represents real liquidity, not accounting profit.",
-        "High receivables or low cash can create short-term survival pressure.",
-        [
+    sections.append({
+        "title": "🏦 Cash Position",
+        "what": f"Cash is {fmt(c)} with {fmt(ar)} in receivables. Cash changed by {fmt(cash_d)}.",
+        "why": "Cash represents real liquidity, not accounting profit.",
+        "why_matters": "High receivables can create cash flow stress even in profitable businesses.",
+        "evidence": [
             f"Cash Change: {fmt(cash_d)}",
             f"AR Change: {fmt(ar_d)}"
         ]
-    ))
+    })
 
     # =================================================
-    # ⚖️ DEBT & STABILITY (ALWAYS SHOWN)
+    # ⚖️ DEBT & STABILITY
     # =================================================
-    sections.append(build_section(
-        "⚖️ Debt & Financial Stability",
-        f"Cash is {fmt(c)} vs liabilities of {fmt(l)}. Coverage ratio: {coverage:.2f if coverage else 'N/A'}.",
-        "This shows whether the business can cover obligations with available liquidity.",
-        "Low coverage signals dependency on incoming cash flow or financing.",
-        [
+    sections.append({
+        "title": "⚖️ Debt & Financial Stability",
+        "what": f"Cash is {fmt(c)} vs liabilities of {fmt(l)}. Coverage ratio: {coverage_display}.",
+        "why": "Measures ability to cover obligations with available cash.",
+        "why_matters": "Low coverage signals dependency on incoming cash flow or financing.",
+        "evidence": [
             f"Cash: {fmt(c)}",
             f"Liabilities: {fmt(l)}",
-            f"Coverage Ratio: {coverage if coverage else 'N/A'}"
+            f"Coverage Ratio: {coverage_display}"
         ]
-    ))
+    })
 
     return sections
 
 # =====================================================
-# RUN
+# RUN SNAPSHOT
 # =====================================================
 if run_btn:
 
