@@ -130,35 +130,75 @@ def insights(d):
 
     output = {}
 
-    # PROFITABILITY
+    # =================================================
+    # PROFITABILITY (WHAT + WHY + SO WHAT)
+    # =================================================
     if r and e:
         p = r - e
+        margin = (p / r) if r else 0
+
         output["Profitability"] = {
-            "summary": f"Revenue is {fmt(r)} while expenses are {fmt(e)}, leaving about {fmt(p)} profit.",
+            "summary": (
+                f"Revenue is {fmt(r)} and expenses are {fmt(e)}, "
+                f"resulting in about {fmt(p)} profit. "
+                f"This means roughly {margin:.0%} of revenue is retained as profit."
+            ),
+            "interpretation": (
+                "Profit is determined by how efficiently revenue is converted after costs. "
+                "Even with strong revenue, high expenses can compress real earnings."
+            ),
             "evidence": [
                 f"Revenue: {fmt(r)}",
                 f"Expenses: {fmt(e)}",
-                f"Profit: {fmt(p)}"
+                f"Profit: {fmt(p)}",
+                f"Profit Margin: {margin:.0%}"
             ]
         }
 
-    # CASH FLOW PRESSURE
+    # =================================================
+    # CASH POSITION (LIQUIDITY PRESSURE)
+    # =================================================
     if c or ar:
+        pressure_note = ""
+
+        if ar and r:
+            ar_ratio = ar / r
+            pressure_note = f"Accounts receivable represents {ar_ratio:.0%} of revenue, which can delay cash flow."
+
         output["Cash Position"] = {
-            "summary": f"Cash is {fmt(c)} with {fmt(ar)} tied in receivables.",
+            "summary": (
+                f"Cash is {fmt(c)} with {fmt(ar)} tied in accounts receivable. "
+                f"{pressure_note}"
+            ),
+            "interpretation": (
+                "Cash position reflects real liquidity, not just profit. "
+                "High receivables can create cash stress even in profitable businesses."
+            ),
             "evidence": [
                 f"Cash: {fmt(c)}",
                 f"Accounts Receivable: {fmt(ar)}"
             ]
         }
 
-    # FINANCIAL STABILITY
+    # =================================================
+    # FINANCIAL STABILITY (BALANCE PRESSURE)
+    # =================================================
     if c and l:
+        ratio = c / l if l else 0
+
         output["Stability"] = {
-            "summary": f"Cash of {fmt(c)} compared to liabilities of {fmt(l)} shows current financial position.",
+            "summary": (
+                f"Cash of {fmt(c)} compared to liabilities of {fmt(l)} "
+                f"gives a liquidity coverage ratio of {ratio:.2f}."
+            ),
+            "interpretation": (
+                "This ratio indicates short-term financial resilience. "
+                "Lower coverage can signal reliance on incoming cash flow to meet obligations."
+            ),
             "evidence": [
                 f"Cash: {fmt(c)}",
-                f"Liabilities: {fmt(l)}"
+                f"Liabilities: {fmt(l)}",
+                f"Coverage Ratio: {ratio:.2f}"
             ]
         }
 
