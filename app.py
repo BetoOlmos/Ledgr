@@ -115,33 +115,77 @@ def parse_csv(file):
 # =====================================================
 st.title("Business Pulse")
 
-text = st.text_area("Paste financial report", height=200)
-csv_file = st.file_uploader("Or upload CSV", type=["csv"])
+text = st.text_area(
+    "Paste financial report",
+    height=200,
+    key="financial_input"
+)
 
-col1, col2 = st.columns(2)
+csv_file = st.file_uploader(
+    "Upload CSV (optional)",
+    type=["csv"]
+)
 
-with col1:
-    add_btn = st.button("Add Report")
-
-with col2:
-    run_btn = st.button("Generate Business Pulse")
+generate_btn = st.button(
+    "Generate Business Pulse",
+    use_container_width=True
+)
 
 # =====================================================
-# ADD REPORT
+# GENERATE (ADD + ANALYZE IN ONE STEP)
 # =====================================================
-if add_btn:
-    parsed = parse_csv(csv_file) if csv_file else extract_numbers(text)
 
-    if not parsed:
-        st.warning("No financial data detected")
+if generate_btn:
+
+    parsed = {}
+
+    if csv_file is not None:
+        parsed = parse_csv(csv_file)
+
+    elif text.strip():
+        parsed = extract_numbers(text)
+
+    if parsed:
+        st.session_state.reports.append({
+            "data": parsed,
+            "time": datetime.now()
+        })
+
+    latest, prev = get_models()
+
+    if not latest:
+        st.warning("Paste a report or upload a CSV.")
         st.stop()
 
-    st.session_state.reports.append({
-        "data": parsed,
-        "time": datetime.now()
-    })
+    sections = build_sections(latest, prev)
 
-    st.success("Report added")
+    # CLEAR INPUT BOX AFTER PROCESSING
+    st.session_state.financial_input = ""
+
+    st.markdown("## Business Pulse")
+
+    for s in sections:
+
+        st.subheader(s["title"])
+
+        st.write(s["what"])
+
+        st.write(
+            f"Why: {s['why']}"
+        )
+
+        st.write(
+            f"Why it matters: {s['why_matters']}"
+        )
+
+        if s["evidence"]:
+
+            st.write("Evidence")
+
+            for item in s["evidence"]:
+                st.write(f"- {item}")
+
+    st.rerun()
 
 # =====================================================
 # MODEL
