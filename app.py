@@ -121,19 +121,21 @@ def build_sections(latest, prev):
     ]
 
 # =====================================================
-# UI
+# UI (FORM FIX — THIS SOLVES EVERYTHING)
 # =====================================================
 st.title("Business Pulse")
 
-text = st.text_area("Paste financial report", height=200, key="input_box")
-csv_file = st.file_uploader("Upload CSV", type=["csv"])
+with st.form("pulse_form", clear_on_submit=True):
 
-generate_btn = st.button("Generate Business Pulse", use_container_width=True)
+    text = st.text_area("Paste financial report", height=200)
+    csv_file = st.file_uploader("Upload CSV", type=["csv"])
+
+    submitted = st.form_submit_button("Generate Business Pulse")
 
 # =====================================================
 # RUN
 # =====================================================
-if generate_btn:
+if submitted:
 
     parsed = {}
 
@@ -151,14 +153,10 @@ if generate_btn:
     latest, prev = get_models()
     sections = build_sections(latest, prev)
 
-    # ✅ RENDER FIRST
     st.markdown("## Business Snapshot")
 
     for s in sections:
         st.subheader(s["title"])
         st.write(s["what"])
 
-    # ✅ THEN CLEAR INPUT SAFELY
-    st.session_state.input_box = ""
-
-    st.rerun()
+    st.write(f"Reports stored: {len(st.session_state.reports)}")
