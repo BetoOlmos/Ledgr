@@ -1,5 +1,4 @@
 import streamlit as st
-import pandas as pd
 import re
 
 st.set_page_config(page_title="Business Pulse", layout="wide")
@@ -18,15 +17,24 @@ def fmt(v):
         return "N/A"
     return f"${v:,.0f}"
 
-def delta(curr, prev):
-    if curr is None or prev is None:
+def to_num(x):
+    try:
+        x = float(x)
+        if x == 0:
+            return None
+        return x
+    except:
         return None
-    return curr - prev
+
+def delta(a, b):
+    if a is None or b is None:
+        return None
+    return a - b
 
 # =====================================================
-# PARSER
+# PARSER (robust enough for MVP)
 # =====================================================
-def extract(text):
+def parse(text):
     if not text:
         return {}
 
@@ -34,18 +42,18 @@ def extract(text):
 
     for line in text.split("\n"):
         l = line.lower()
-        nums = re.findall(r"\$?\(?\d[\d,]*\.?\d*\)?", l)
+        nums = re.findall(r"\(?\$?\d[\d,]*\.?\d*\)?", l)
 
         if not nums:
             continue
 
-        val = nums[-1].replace("$", "").replace(",", "")
-        if "(" in val:
-            val = "-" + val.replace("(", "").replace(")", "")
+        raw = nums[-1].replace("$", "").replace(",", "")
 
-        try:
-            v = float(val)
-        except:
+        if "(" in raw:
+            raw = "-" + raw.replace("(", "").replace(")", "")
+
+        v = to_num(raw)
+        if v is None:
             continue
 
         if "revenue" in l or "sales" in l:
@@ -58,7 +66,7 @@ def extract(text):
             out["cash"] = v
         elif "liabil" in l:
             out["liabilities"] = v
-        elif "receivable" in l or "ar" in l:
+        elif "receivable" in l:
             out["ar"] = v
 
     return out
@@ -76,124 +84,106 @@ def get_models():
     return latest, prev
 
 # =====================================================
-# CFO INTELLIGENCE ENGINE (THIS IS THE CORE FIX)
+# CFO ENGINE (IMPROVED BUT STILL SIMPLE)
 # =====================================================
-def build_cfo(latest, prev):
+def build(latest, prev):
 
     r = latest.get("revenue")
     e = latest.get("expenses")
     p = latest.get("profit")
     c = latest.get("cash")
-    ar = latest.get("ar")
     l = latest.get("liabilities")
+    ar = latest.get("ar")
 
     rp = prev.get("revenue")
     pp = prev.get("profit")
-    ep = prev.get("expenses")
 
     rev_d = delta(r, rp)
     prof_d = delta(p, pp)
-    exp_d = delta(e, ep)
 
     # -----------------------------
-    # GLOBAL SNAPSHOT (NARRATIVE)
+    # CFO PARAGRAPH (REAL IMPROVED VERSION)
     # -----------------------------
-    summary = []
+    parts = []
 
-    if rev_d and prof_d:
-        if rev_d > 0 and prof_d < rev_d:
-            summary.append(
-                f"Revenue increased by approximately {fmt(rev_d)} while profit improved by only {fmt(prof_d)}, "
-                f"indicating growth is being absorbed by rising costs."
-            )
+    if r and p:
+        if rev_d and prof_d is not None:
+            if rev_d > 0 and prof_d < rev_d:
+                parts.append(
+                    f"Revenue grew by {fmt(rev_d)} but profit increased by only {fmt(prof_d)}, "
+                    f"showing reduced conversion efficiency."
+                )
+            elif rev_d and rev_d < 0:
+                parts.append("Revenue declined during the period, signaling contraction in sales activity.")
 
-    if exp_d and exp_d > 0:
-        summary.append("Operating expenses increased during the period, putting pressure on margins.")
+    if e:
+        parts.append("Expenses remain a key driver of performance.")
 
-    if ar and ar > 0:
-        summary.append("Unpaid customer invoices increased, tying up cash in receivables.")
+    if ar:
+        parts.append("Unpaid invoices are tying up cash flow.")
 
     if c:
-        summary.append("Cash position remains stable.")
+        parts.append("Cash position remains stable.")
 
-    summary.append("Overall, the business is growing, but profitability quality should be monitored.")
+    if not parts:
+        parts.append("Business activity shows mixed signals with limited comparable history.")
 
-    summary_text = " ".join(summary)
+    summary = " ".join(parts)
 
     # -----------------------------
     # SECTIONS
     # -----------------------------
-    return summary_text, [
-        {
-            "title": "Profitability",
-            "body": [
-                f"Revenue: {fmt(r)}",
-                f"Profit: {fmt(p)}",
-                f"Profit Change: {fmt(prof_d)}",
-                "Insight: Profitability depends on how much revenue converts into retained earnings."
-            ]
-        },
-        {
-            "title": "Growth",
-            "body": [
-                f"Revenue Change: {fmt(rev_d)}",
-                "Insight: Growth is measured by expansion in top-line revenue."
-            ]
-        },
-        {
-            "title": "Expenses",
-            "body": [
-                f"Expense Change: {fmt(exp_d)}",
-                "Insight: Expense behavior determines scalability."
-            ]
-        },
-        {
-            "title": "Cash Position",
-            "body": [
-                f"Cash: {fmt(c)}",
-                f"Accounts Receivable: {fmt(ar)}",
-                "Insight: Receivables affect real liquidity."
-            ]
-        },
-        {
-            "title": "Financial Stability",
-            "body": [
-                f"Liabilities: {fmt(l)}",
-                f"Cash: {fmt(c)}",
-                "Insight: Stability depends on ability to cover obligations."
-            ]
-        }
+    return summary, [
+        ("Profitability", [
+            f"Revenue: {fmt(r)}",
+            f"Profit: {fmt(p)}",
+            f"Profit Change: {fmt(prof_d)}"
+        ]),
+        ("Growth", [
+            f"Revenue Change: {fmt(rev_d)}"
+        ]),
+        ("Expenses", [
+            f"Expenses: {fmt(e)}"
+        ]),
+        ("Cash Position", [
+            f"Cash: {fmt(c)}",
+            f"Accounts Receivable: {fmt(ar)}"
+        ]),
+        ("Financial Stability", [
+            f"Liabilities: {fmt(l)}",
+            f"Cash: {fmt(c)}"
+        ])
     ]
 
 # =====================================================
-# UI
+# UI (FIX: FORM SOLVES INPUT ISSUE COMPLETELY)
 # =====================================================
 st.title("Business Pulse")
 
-text = st.text_area("Paste financial report", height=200)
+with st.form("form", clear_on_submit=True):
 
-btn = st.button("Generate Business Pulse", use_container_width=True)
+    text = st.text_area("Paste financial report")
+    submitted = st.form_submit_button("Generate Business Pulse")
 
 # =====================================================
 # RUN
 # =====================================================
-if btn:
+if submitted:
 
-    parsed = extract(text)
+    parsed = parse(text)
 
     if parsed:
         st.session_state.reports.append({"data": parsed})
 
     latest, prev = get_models()
-
-    summary, sections = build_cfo(latest, prev)
+    summary, sections = build(latest, prev)
 
     st.markdown("## Business Snapshot")
     st.write(summary)
 
-    for s in sections:
-        st.subheader(s["title"])
-        for line in s["body"]:
-            st.write(line)
+    for title, lines in sections:
+        st.subheader(title)
+        for l in lines:
+            st.write(l)
 
     st.write(f"Reports stored: {len(st.session_state.reports)}")
