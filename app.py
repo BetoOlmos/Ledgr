@@ -22,58 +22,74 @@ def fmt(v):
         return "N/A"
     return f"${v:,.0f}"
 
-def num(v):
+def parse_number(s):
+    if not s:
+        return None
+
+    s = s.replace("$", "").replace(",", "").strip()
+
+    # handle (12,000)
+    if "(" in s and ")" in s:
+        s = s.replace("(", "-").replace(")", "")
+
     try:
-        v = float(v)
+        v = float(s)
         if v == 0:
             return None
         return v
     except:
         return None
 
-def delta(curr, prev):
-    if curr is None or prev is None:
-        return None
-    return curr - prev
-
-def safe(v):
-    return v if v is not None else None
-
 # =====================================================
-# PARSER (TEXT)
+# STRONG PARSER
 # =====================================================
 def extract_numbers(text):
     if not text:
         return {}
 
-    out = {}
+    out = {
+        "revenue": [],
+        "expenses": [],
+        "profit": [],
+        "cash": [],
+        "liabilities": [],
+        "ar": []
+    }
+
     lines = text.split("\n")
 
     for line in lines:
         l = line.lower()
-        nums = re.findall(r"[\$]?\d[\d,]*\.?\d*", l)
 
+        nums = re.findall(r"\(?\$?\d[\d,]*\.?\d*\)?", l)
         if not nums:
             continue
 
-        value = num(nums[-1].replace("$", "").replace(",", ""))
-        if value is None:
+        val = parse_number(nums[-1])
+        if val is None:
             continue
 
-        if "revenue" in l or "sales" in l:
-            out["revenue"] = value
-        elif "expense" in l:
-            out["expenses"] = value
-        elif "profit" in l or "net income" in l:
-            out["profit"] = value
-        elif "cash" in l:
-            out["cash"] = value
-        elif "liabil" in l or "debt" in l:
-            out["liabilities"] = value
-        elif "receivable" in l or "ar" in l:
-            out["ar"] = value
+        # broader classification logic
+        if "revenue" in l or "sales" in l or "income" in l:
+            out["revenue"].append(val)
 
-    return out
+        elif "expense" in l or "cost" in l:
+            out["expenses"].append(val)
+
+        elif "net income" in l or "net profit" in l or "profit" in l:
+            out["profit"].append(val)
+
+        elif "cash" in l:
+            out["cash"].append(val)
+
+        elif "liabil" in l or "debt" in l:
+            out["liabilities"].append(val)
+
+        elif "receivable" in l or "ar" in l:
+            out["ar"].append(val)
+
+    # collapse lists → single values
+    return {k: sum(v) if v else None for k, v in out.items()}
 
 # =====================================================
 # CSV PARSER
@@ -82,30 +98,23 @@ def parse_csv(file):
     df = pd.read_csv(file)
     df.columns = df.columns.str.lower()
 
-    out = {}
+    def colsum(keyword):
+        cols = [c for c in df.columns if keyword in c]
+        if not cols:
+            return None
+        total = 0
+        for c in cols:
+            total += pd.to_numeric(df[c], errors="coerce").sum()
+        return total if total != 0 else None
 
-    for c in df.columns:
-        col = df[c]
-
-        if "revenue" in c or "sales" in c:
-            out["revenue"] = num(col.sum())
-
-        elif "expense" in c:
-            out["expenses"] = num(col.sum())
-
-        elif "profit" in c:
-            out["profit"] = num(col.sum())
-
-        elif "cash" in c:
-            out["cash"] = num(col.sum())
-
-        elif "liabil" in c or "debt" in c:
-            out["liabilities"] = num(col.sum())
-
-        elif "receivable" in c or "ar" in c:
-            out["ar"] = num(col.sum())
-
-    return out
+    return {
+        "revenue": colsum("revenue") or colsum("sales"),
+        "expenses": colsum("expense"),
+        "profit": colsum("profit"),
+        "cash": colsum("cash"),
+        "liabilities": colsum("liabil") or colsum("debt"),
+        "ar": colsum("receivable") or colsum("ar")
+    }
 
 # =====================================================
 # MODEL
@@ -120,37 +129,29 @@ def get_models():
     return latest, prev
 
 # =====================================================
-# SNAPSHOT ENGINE (FIXED CORE VALUE)
+# SNAPSHOT (CORE VALUE)
 # =====================================================
-def build_snapshot(r, e, p, c, l):
+def build_snapshot(r, e, p, c):
 
-    r = safe(r)
-    e = safe(e)
-    p = safe(p)
-    c = safe(c)
-
-    profit = p if p is not None else (r - e if r and e else None)
+    # fallback profit if missing
+    if p is None and r is not None and e is not None:
+        p = r - e
 
     parts = []
 
-    if r and e:
-        parts.append(f"Revenue was {fmt(r)} against {fmt(e)} in expenses")
+    if r is not None and e is not None:
+        parts.append(f"Revenue of {fmt(r)} against expenses of {fmt(e)}")
 
-    if profit is not None:
-        parts.append(f"resulting in about {fmt(profit)} in profit")
+    if p is not None:
+        parts.append(f"resulting in {fmt(p)} in profit")
 
-    if c:
-        parts.append(f"Cash stands at {fmt(c)}")
+    if c is not None:
+        parts.append(f"Cash position stands at {fmt(c)}")
 
-    if l:
-        parts.append(f"with liabilities around {fmt(l)}")
-
-    base = ". ".join(parts)
-
-    return base + "."
+    return ". ".join(parts) + "."
 
 # =====================================================
-# INSIGHTS ENGINE
+# INSIGHTS
 # =====================================================
 def build_sections(latest, prev):
 
@@ -162,14 +163,12 @@ def build_sections(latest, prev):
     ar = latest.get("ar")
 
     rp = prev.get("revenue")
-    ep = prev.get("expenses")
     pp = prev.get("profit")
 
-    rev_d = delta(r, rp)
-    prof_d = delta(p, pp)
-    exp_d = delta(e, ep)
+    rev_d = (r - rp) if r and rp else None
+    prof_d = (p - pp) if p and pp else None
 
-    snapshot = build_snapshot(r, e, p, c, l)
+    snapshot = build_snapshot(r, e, p, c)
 
     return [
         {
@@ -180,28 +179,26 @@ def build_sections(latest, prev):
         {
             "title": "Profitability",
             "what": f"Revenue {fmt(r)}, Expenses {fmt(e)}, Profit {fmt(p)}",
-            "evidence": [
-                f"Profit Change: {fmt(prof_d)}"
-            ]
+            "evidence": [f"Profit Change: {fmt(prof_d)}"]
         },
         {
             "title": "Growth",
-            "what": f"Revenue {fmt(r)} (change {fmt(rev_d)})",
-            "evidence": []
+            "what": f"Revenue {fmt(r)}",
+            "evidence": [f"Revenue Change: {fmt(rev_d)}"]
         },
         {
             "title": "Expenses",
-            "what": f"Expenses {fmt(e)} (change {fmt(exp_d)})",
+            "what": f"Expenses {fmt(e)}",
             "evidence": []
         },
         {
             "title": "Cash Position",
-            "what": f"Cash {fmt(c)} with receivables {fmt(ar)}",
+            "what": f"Cash {fmt(c)}",
             "evidence": []
         },
         {
             "title": "Financial Stability",
-            "what": f"Cash {fmt(c)} vs liabilities {fmt(l)}",
+            "what": f"Cash {fmt(c)} vs Liabilities {fmt(l)}",
             "evidence": []
         }
     ]
@@ -217,15 +214,14 @@ csv_file = st.file_uploader("Upload CSV", type=["csv"])
 generate_btn = st.button("Generate Business Pulse", use_container_width=True)
 
 # =====================================================
-# MAIN FLOW
+# RUN
 # =====================================================
 if generate_btn:
 
     parsed = {}
 
-    if csv_file is not None:
+    if csv_file:
         parsed = parse_csv(csv_file)
-
     elif text.strip():
         parsed = extract_numbers(text)
 
@@ -237,13 +233,8 @@ if generate_btn:
 
     latest, prev = get_models()
 
-    if not latest:
-        st.warning("No data detected.")
-        st.stop()
-
     sections = build_sections(latest, prev)
 
-    # CLEAR INPUT (REAL FIX)
     st.session_state["financial_input"] = ""
 
     st.markdown("## Business Pulse")
@@ -252,10 +243,4 @@ if generate_btn:
         st.subheader(s["title"])
         st.write(s["what"])
 
-        if s["evidence"]:
-            st.write("Evidence")
-            for e in s["evidence"]:
-                st.write(f"- {e}")
-
-    st.write("---")
     st.write(f"Reports stored: {len(st.session_state.reports)}")
