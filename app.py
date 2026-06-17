@@ -22,35 +22,31 @@ def fmt(v):
         return "N/A"
     return f"${v:,.0f}"
 
-def clean(v):
-    if v is None:
-        return None
+def num(v):
     try:
         v = float(v)
+        if v == 0:
+            return None
+        return v
     except:
         return None
-    if v == 0:
-        return None
-    return v
 
 def delta(curr, prev):
     if curr is None or prev is None:
         return None
     return curr - prev
 
-def safe_ratio(a, b):
-    if a is None or b in (None, 0):
-        return None
-    return a / b
+def safe(v):
+    return v if v is not None else None
 
 # =====================================================
 # PARSER (TEXT)
 # =====================================================
 def extract_numbers(text):
-    out = {}
     if not text:
-        return out
+        return {}
 
+    out = {}
     lines = text.split("\n")
 
     for line in lines:
@@ -60,33 +56,27 @@ def extract_numbers(text):
         if not nums:
             continue
 
-        try:
-            val = float(nums[-1].replace("$", "").replace(",", ""))
-        except:
+        value = num(nums[-1].replace("$", "").replace(",", ""))
+        if value is None:
             continue
 
-        val = clean(val)
-
-        if val is None:
-            continue
-
-        if "revenue" in l or "sales" in l or "income" in l:
-            out["revenue"] = val
+        if "revenue" in l or "sales" in l:
+            out["revenue"] = value
         elif "expense" in l:
-            out["expenses"] = val
-        elif "profit" in l:
-            out["profit"] = val
+            out["expenses"] = value
+        elif "profit" in l or "net income" in l:
+            out["profit"] = value
         elif "cash" in l:
-            out["cash"] = val
+            out["cash"] = value
         elif "liabil" in l or "debt" in l:
-            out["liabilities"] = val
+            out["liabilities"] = value
         elif "receivable" in l or "ar" in l:
-            out["ar"] = val
+            out["ar"] = value
 
     return out
 
 # =====================================================
-# PARSER (CSV)
+# CSV PARSER
 # =====================================================
 def parse_csv(file):
     df = pd.read_csv(file)
@@ -94,32 +84,26 @@ def parse_csv(file):
 
     out = {}
 
-    for col in df.columns:
-        c = col.lower()
+    for c in df.columns:
+        col = df[c]
 
         if "revenue" in c or "sales" in c:
-            v = pd.to_numeric(df[col], errors="coerce").sum()
-            out["revenue"] = clean(v)
+            out["revenue"] = num(col.sum())
 
         elif "expense" in c:
-            v = pd.to_numeric(df[col], errors="coerce").sum()
-            out["expenses"] = clean(v)
+            out["expenses"] = num(col.sum())
 
         elif "profit" in c:
-            v = pd.to_numeric(df[col], errors="coerce").sum()
-            out["profit"] = clean(v)
+            out["profit"] = num(col.sum())
 
         elif "cash" in c:
-            v = pd.to_numeric(df[col], errors="coerce").sum()
-            out["cash"] = clean(v)
+            out["cash"] = num(col.sum())
 
         elif "liabil" in c or "debt" in c:
-            v = pd.to_numeric(df[col], errors="coerce").sum()
-            out["liabilities"] = clean(v)
+            out["liabilities"] = num(col.sum())
 
         elif "receivable" in c or "ar" in c:
-            v = pd.to_numeric(df[col], errors="coerce").sum()
-            out["ar"] = clean(v)
+            out["ar"] = num(col.sum())
 
     return out
 
@@ -128,7 +112,7 @@ def parse_csv(file):
 # =====================================================
 def get_models():
     if not st.session_state.reports:
-        return None, None
+        return {}, {}
 
     latest = st.session_state.reports[-1]["data"]
     prev = st.session_state.reports[-2]["data"] if len(st.session_state.reports) > 1 else {}
@@ -136,49 +120,56 @@ def get_models():
     return latest, prev
 
 # =====================================================
-# SNAPSHOT
+# SNAPSHOT ENGINE (FIXED CORE VALUE)
 # =====================================================
-def build_snapshot(r, e, p, c, l, ar, rev_d, prof_d, exp_d):
+def build_snapshot(r, e, p, c, l):
+
+    r = safe(r)
+    e = safe(e)
+    p = safe(p)
+    c = safe(c)
+
+    profit = p if p is not None else (r - e if r and e else None)
 
     parts = []
 
-    if rev_d is not None:
-        parts.append(f"Revenue moved {fmt(rev_d)}")
+    if r and e:
+        parts.append(f"Revenue was {fmt(r)} against {fmt(e)} in expenses")
 
-    if prof_d is not None:
-        parts.append(f"profit changed {fmt(prof_d)}")
+    if profit is not None:
+        parts.append(f"resulting in about {fmt(profit)} in profit")
 
-    if exp_d is not None:
-        parts.append(f"expenses shifted {fmt(exp_d)}")
+    if c:
+        parts.append(f"Cash stands at {fmt(c)}")
 
-    base = " ".join(parts)
+    if l:
+        parts.append(f"with liabilities around {fmt(l)}")
 
-    return f"{base}. Revenue is {fmt(r)}, profit is {fmt(p)}, cash is {fmt(c)}."
+    base = ". ".join(parts)
+
+    return base + "."
 
 # =====================================================
-# INSIGHTS
+# INSIGHTS ENGINE
 # =====================================================
 def build_sections(latest, prev):
 
-    r = clean(latest.get("revenue"))
-    e = clean(latest.get("expenses"))
-    p = clean(latest.get("profit"))
-    c = clean(latest.get("cash"))
-    l = clean(latest.get("liabilities"))
-    ar = clean(latest.get("ar"))
+    r = latest.get("revenue")
+    e = latest.get("expenses")
+    p = latest.get("profit")
+    c = latest.get("cash")
+    l = latest.get("liabilities")
+    ar = latest.get("ar")
 
-    rp = clean(prev.get("revenue"))
-    ep = clean(prev.get("expenses"))
-    pp = clean(prev.get("profit"))
+    rp = prev.get("revenue")
+    ep = prev.get("expenses")
+    pp = prev.get("profit")
 
     rev_d = delta(r, rp)
     prof_d = delta(p, pp)
     exp_d = delta(e, ep)
 
-    coverage = safe_ratio(c, l)
-    coverage_display = f"{coverage:.2f}" if coverage is not None else "N/A"
-
-    snapshot = build_snapshot(r, e, p, c, l, ar, rev_d, prof_d, exp_d)
+    snapshot = build_snapshot(r, e, p, c, l)
 
     return [
         {
@@ -188,34 +179,30 @@ def build_sections(latest, prev):
         },
         {
             "title": "Profitability",
-            "what": f"Revenue {fmt(r)}, Expenses {fmt(e)}, Profit {fmt(p)}.",
+            "what": f"Revenue {fmt(r)}, Expenses {fmt(e)}, Profit {fmt(p)}",
             "evidence": [
-                f"Revenue Change: {fmt(rev_d)}",
                 f"Profit Change: {fmt(prof_d)}"
             ]
         },
         {
             "title": "Growth",
-            "what": f"Revenue is {fmt(r)} (change {fmt(rev_d)}).",
-            "evidence": [f"Revenue Change: {fmt(rev_d)}"]
+            "what": f"Revenue {fmt(r)} (change {fmt(rev_d)})",
+            "evidence": []
         },
         {
             "title": "Expenses",
-            "what": f"Expenses are {fmt(e)} (change {fmt(exp_d)}).",
-            "evidence": [f"Expense Change: {fmt(exp_d)}"]
+            "what": f"Expenses {fmt(e)} (change {fmt(exp_d)})",
+            "evidence": []
         },
         {
             "title": "Cash Position",
-            "what": f"Cash {fmt(c)} with receivables {fmt(ar)}.",
+            "what": f"Cash {fmt(c)} with receivables {fmt(ar)}",
             "evidence": []
         },
         {
             "title": "Financial Stability",
-            "what": f"Cash {fmt(c)} vs liabilities {fmt(l)}. Coverage {coverage_display}.",
-            "evidence": [
-                f"Cash: {fmt(c)}",
-                f"Liabilities: {fmt(l)}"
-            ]
+            "what": f"Cash {fmt(c)} vs liabilities {fmt(l)}",
+            "evidence": []
         }
     ]
 
@@ -230,7 +217,7 @@ csv_file = st.file_uploader("Upload CSV", type=["csv"])
 generate_btn = st.button("Generate Business Pulse", use_container_width=True)
 
 # =====================================================
-# RUN (SINGLE FLOW)
+# MAIN FLOW
 # =====================================================
 if generate_btn:
 
@@ -251,13 +238,13 @@ if generate_btn:
     latest, prev = get_models()
 
     if not latest:
-        st.warning("Paste a report or upload a CSV.")
+        st.warning("No data detected.")
         st.stop()
 
     sections = build_sections(latest, prev)
 
-    # clear input after run
-    st.session_state.clear_input = True
+    # CLEAR INPUT (REAL FIX)
+    st.session_state["financial_input"] = ""
 
     st.markdown("## Business Pulse")
 
