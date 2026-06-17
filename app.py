@@ -78,25 +78,25 @@ def get_models():
     return latest, prev
 
 # =====================================================
-# SNAPSHOT (FIXED — THIS WAS THE MISSING PIECE)
+# SNAPSHOT
 # =====================================================
 def build_snapshot(r, e, p, c):
 
     if p is None and r is not None and e is not None:
         p = r - e
 
-    sentence = []
+    parts = []
 
     if r is not None and e is not None:
-        sentence.append(f"Revenue of {fmt(r)} with expenses of {fmt(e)}")
+        parts.append(f"Revenue of {fmt(r)} with expenses of {fmt(e)}")
 
     if p is not None:
-        sentence.append(f"producing about {fmt(p)} in profit")
+        parts.append(f"producing about {fmt(p)} in profit")
 
     if c is not None:
-        sentence.append(f"Cash sits at {fmt(c)}")
+        parts.append(f"Cash sits at {fmt(c)}")
 
-    return ". ".join(sentence) + "."
+    return ". ".join(parts) + "."
 
 # =====================================================
 # INSIGHTS
@@ -109,43 +109,19 @@ def build_sections(latest, prev):
     c = latest.get("cash")
     l = latest.get("liabilities")
 
-    rp = prev.get("revenue")
-    pp = prev.get("profit")
-
-    rev_d = (r - rp) if r and rp else None
-    prof_d = (p - pp) if p and pp else None
-
     snapshot = build_snapshot(r, e, p, c)
 
     return [
-        {
-            "title": "Business Snapshot",
-            "what": snapshot
-        },
-        {
-            "title": "Profitability",
-            "what": f"Revenue {fmt(r)}, Expenses {fmt(e)}, Profit {fmt(p)}"
-        },
-        {
-            "title": "Growth",
-            "what": f"Revenue {fmt(r)} (change {fmt(rev_d)})"
-        },
-        {
-            "title": "Expenses",
-            "what": f"Expenses {fmt(e)}"
-        },
-        {
-            "title": "Cash Position",
-            "what": f"Cash {fmt(c)}"
-        },
-        {
-            "title": "Financial Stability",
-            "what": f"Cash {fmt(c)} vs Liabilities {fmt(l)}"
-        }
+        {"title": "Business Snapshot", "what": snapshot},
+        {"title": "Profitability", "what": f"Revenue {fmt(r)}, Expenses {fmt(e)}, Profit {fmt(p)}"},
+        {"title": "Growth", "what": f"Revenue {fmt(r)}"},
+        {"title": "Expenses", "what": f"Expenses {fmt(e)}"},
+        {"title": "Cash Position", "what": f"Cash {fmt(c)}"},
+        {"title": "Financial Stability", "what": f"Cash {fmt(c)} vs Liabilities {fmt(l)}"},
     ]
 
 # =====================================================
-# UI (IMPORTANT FIX: KEY ADDED)
+# UI
 # =====================================================
 st.title("Business Pulse")
 
@@ -175,14 +151,14 @@ if generate_btn:
     latest, prev = get_models()
     sections = build_sections(latest, prev)
 
+    # ✅ RENDER FIRST
     st.markdown("## Business Snapshot")
 
     for s in sections:
         st.subheader(s["title"])
         st.write(s["what"])
 
-    # ✅ THIS IS THE ACTUAL INPUT CLEAR FIX
-    st.session_state["input_box"] = ""
-    st.rerun()
+    # ✅ THEN CLEAR INPUT SAFELY
+    st.session_state.input_box = ""
 
-    st.write(f"Reports stored: {len(st.session_state.reports)}")
+    st.rerun()
