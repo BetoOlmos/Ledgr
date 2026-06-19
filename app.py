@@ -15,31 +15,24 @@ def fmt(v):
     return f"${v:,.0f}"
 
 
-def find_value(df, keywords):
-    for _, row in df.iterrows():
+import re
 
-        row_text = " ".join(str(x).lower() for x in row)
+def find_value(text_lines, keyword):
+    for line in text_lines:
+        l = line.lower()
 
-        for keyword in keywords:
-            if keyword in row_text:
+        if keyword in l:
 
-                numbers = []
+            # find all numbers in line
+            nums = re.findall(r"-?\$?[\d,]+\.?\d*", line)
 
-                for cell in row:
-                    try:
-                        value = float(
-                            str(cell)
-                            .replace("$", "")
-                            .replace(",", "")
-                            .replace("(", "-")
-                            .replace(")", "")
-                        )
-                        numbers.append(value)
-                    except:
-                        pass
+            if nums:
+                raw = nums[-1]
 
-                if numbers:
-                    return numbers[-1]
+                return float(
+                    raw.replace("$", "")
+                       .replace(",", "")
+                )
 
     return None
 
@@ -67,55 +60,76 @@ generate = st.button("Generate Business Pulse")
 if generate:
 
     if pnl_file is None or bs_file is None:
-        st.error("Please upload both CSV files.")
+        st.error("Please upload both Profit & Loss and Balance Sheet CSV files.")
         st.stop()
 
     try:
 
-        pnl = pd.read_csv(pnl_file)
-        bs = pd.read_csv(bs_file)
+        # =====================================================
+        # READ FILES AS TEXT (IMPORTANT FIX)
+        # =====================================================
 
-        revenue = find_value(
-            pnl,
-            ["revenue", "sales", "income"]
-        )
+        pnl_lines = pnl_file.getvalue().decode("utf-8", errors="ignore").split("\n")
+        bs_lines = bs_file.getvalue().decode("utf-8", errors="ignore").split("\n")
 
-        expenses = find_value(
-            pnl,
-            ["expense", "expenses"]
-        )
+        # =====================================================
+        # VALUE EXTRACTOR
+        # =====================================================
 
-        profit = find_value(
-            pnl,
-            ["net profit", "net income", "profit"]
-        )
+        def find_value(lines, keyword):
+            for line in lines:
+                l = line.lower()
 
-        cash = find_value(
-            bs,
-            ["cash"]
-        )
+                if keyword in l:
 
-        ar = find_value(
-            bs,
-            ["accounts receivable", "receivable"]
-        )
+                    nums = re.findall(r"-?\$?[\d,]+\.?\d*", line)
 
-        liabilities = find_value(
-            bs,
-            ["total liabilities", "liabilities"]
-        )
+                    if nums:
+                        raw = nums[-1]
+                        try:
+                            return float(
+                                raw.replace("$", "").replace(",", "")
+                            )
+                        except:
+                            pass
 
-        # =================================================
-        # BUSINESS SNAPSHOT
-        # =================================================
+            return None
+
+        # =====================================================
+        # P&L EXTRACTION (QBO SAFE KEYS)
+        # =====================================================
+
+        revenue = find_value(pnl_lines, "total revenue")
+        expenses = find_value(pnl_lines, "total expenses")
+        profit = find_value(pnl_lines, "net income")
+
+        # fallback for QBO variants
+        if profit is None:
+            profit = find_value(pnl_lines, "net operating income")
+
+        # =====================================================
+        # BALANCE SHEET EXTRACTION
+        # =====================================================
+
+        cash = find_value(bs_lines, "cash")
+        ar = find_value(bs_lines, "accounts receivable")
+        liabilities = find_value(bs_lines, "total liabilities")
+
+        # =====================================================
+        # SIMPLE BUSINESS STATE
+        # =====================================================
 
         overall = "stable"
 
-        if profit is not None and profit < 0:
-            overall = "under pressure"
+        if profit is not None:
+            if profit > 0:
+                overall = "growing"
+            elif profit < 0:
+                overall = "under pressure"
 
-        elif profit is not None and profit > 0:
-            overall = "growing"
+        # =====================================================
+        # BUSINESS SNAPSHOT
+        # =====================================================
 
         snapshot = (
             f"Revenue was {fmt(revenue)} and profit was {fmt(profit)}. "
@@ -123,60 +137,43 @@ if generate:
             f"Overall, the business appears {overall}."
         )
 
-        # =================================================
+        # =====================================================
         # OUTPUT
-        # =================================================
+        # =====================================================
 
         st.header("Business Snapshot")
         st.write(snapshot)
 
         st.header("Profitability")
-
-        st.write("### What Happened")
+        st.write("What Happened")
         st.write(f"Revenue: {fmt(revenue)}")
         st.write(f"Profit: {fmt(profit)}")
 
-        st.write("### Why")
-        if profit is not None and profit > 0:
-            st.write(
-                "The business generated positive profit during the period."
-            )
-        else:
-            st.write(
-                "Profitability was impacted by expenses relative to revenue."
-            )
+        st.write("Why")
+        st.write("Profit reflects revenue minus expenses during the period.")
 
         st.header("Growth")
-
-        st.write("### What Happened")
+        st.write("What Happened")
         st.write(f"Revenue: {fmt(revenue)}")
 
-        st.write("### Why")
-        st.write(
-            "Revenue reflects sales activity during the selected period."
-        )
+        st.write("Why")
+        st.write("Revenue represents total sales activity for the period.")
 
         st.header("Expenses")
-
-        st.write("### What Happened")
+        st.write("What Happened")
         st.write(f"Expenses: {fmt(expenses)}")
 
-        st.write("### Why")
-        st.write(
-            "Expenses reduced the profit retained by the business."
-        )
+        st.write("Why")
+        st.write("Expenses reduce the profit retained by the business.")
 
         st.header("Cash Position")
-
-        st.write("### What Happened")
+        st.write("What Happened")
         st.write(f"Cash: {fmt(cash)}")
         st.write(f"Accounts Receivable: {fmt(ar)}")
         st.write(f"Liabilities: {fmt(liabilities)}")
 
-        st.write("### Why")
-        st.write(
-            "Cash represents available funds while receivables are amounts still owed to the business."
-        )
+        st.write("Why")
+        st.write("Cash is available funds, receivables are unpaid invoices, and liabilities are obligations.")
 
     except Exception as e:
-        st.error(f"Error reading files: {e}")
+        st.error(f"Error processing files: {e}")
