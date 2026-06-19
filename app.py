@@ -16,10 +16,9 @@ def fmt(v):
 
 
 def find_value(lines, keywords):
-    """
-    Finds a number from a line that contains ANY keyword.
-    Works for QuickBooks exports.
-    """
+
+    best_match = None
+
     for line in lines:
         l = line.lower()
 
@@ -27,17 +26,25 @@ def find_value(lines, keywords):
 
             nums = re.findall(r"-?\$?[\d,]+\.?\d*", line)
 
-            if nums:
-                raw = nums[-1]
+            if not nums:
+                continue
 
-                try:
-                    return float(
-                        raw.replace("$", "").replace(",", "")
-                    )
-                except:
-                    continue
+            raw = nums[-1]
 
-    return None
+            try:
+                value = float(raw.replace("$", "").replace(",", ""))
+
+                # PRIORITY BOOST: prefer TOTAL rows
+                if "total" in l:
+                    return value
+
+                # otherwise store fallback
+                best_match = value
+
+            except:
+                continue
+
+    return best_match
 
 
 # =====================================================
