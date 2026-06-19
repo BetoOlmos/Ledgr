@@ -4,8 +4,8 @@ import streamlit as st
 
 st.set_page_config(page_title="Pulse Engine", layout="centered")
 
-st.markdown("""
-    <style>
+UI_LAYOUT_CSS = """
+<style>
     html, body { font-family: 'Inter', sans-serif; background-color: #FAFAFA; }
     .brief-header { margin-bottom: 30px; border-bottom: 1px solid #E2E8F0; padding-bottom: 20px; }
     .brief-title { font-size: 32px; font-weight: 700; color: #0F172A; }
@@ -20,51 +20,52 @@ st.markdown("""
     .ratio-why { font-size: 14px; color: #475569; background-color: #F8FAFC; border-left: 3px solid #10B981; padding: 12px 16px; }
     .ratio-why-down { border-left-color: #EF4444; }
     .ratio-why-neutral { border-left-color: #64748B; }
-    </style>
-    """, unsafe_allowed_html=True)
-def clean_numeric_cell(val):
-    if pd.isna(val) or val == "":
+</style>
+"""
+st.html(UI_LAYOUT_CSS)
+
+def clean_and_parse_value(raw_val):
+    if pd.isna(raw_val) or str(raw_val).strip() == "":
         return 0.0
     try:
-        s = str(val).strip().replace("$", "").replace(",", "")
-        if "(" in s and ")" in s:
-            s = "-" + s.replace("(", "").replace(")", "")
-        return float(s)
+        clean_str = str(raw_val).strip().replace("$", "").replace(",", "")
+        if "(" in clean_str and ")" in clean_str:
+            clean_str = "-" + clean_str.replace("(", "").replace(")", "")
+        return float(clean_str.split()[0])
     except:
         return 0.0
 
-def parse_accounting_csv(file_obj, keywords):
+def load_financial_sheet(uploaded_file, target_keywords):
     try:
-        raw_text = file_obj.getvalue().decode("utf-8")
-        lines = [line.split(",") for line in raw_text.split("\n") if line.strip()]
-        h_idx, p_names = None, []
-        months = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec", "total"]
-        for idx, cells in enumerate(lines):
-            joined = " ".join([c.lower() for c in cells])
-            if any(m in joined for m in months):
-                h_idx = idx
-                p_names = [c.strip() for c in cells if c.strip() and not any(x in c.lower() for x in ["account", "description", "row", "label"])]
+        raw_bytes = uploaded_file.getvalue().decode("utf-8")
+        df = pd.read_csv(io.StringIO(raw_bytes), header=None).fillna("")
+        header_row_idx = 0
+        periods = []
+        months_list = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec", "total"]
+        for idx, row in df.iterrows():
+            row_text = " ".join([str(cell).lower() for cell in row.values])
+            if any(m in row_text for m in months_list):
+                header_row_idx = idx
+                periods = [str(c).strip() for c in row.values if str(c).strip() != "" and not any(x in str(c).lower() for x in ["account", "description", "label"])]
                 break
-        if h_idx is None:
-            return None
-        file_obj.seek(0)
-        df = pd.read_csv(file_obj, skiprows=h_idx).fillna("")
-        df.columns = [str(c).strip() for c in df.columns]
-        l_col = df.columns[0]
-        df[l_col] = df[l_col].astype(str).str.lower().str.strip()
-        v_cols = [c for c in df.columns if c in p_names or any(p in c for p in p_names)]
-        t_data = {col: 0.0 for col in v_cols}
-        for index, row in df.iterrows():
-            row_label = str(row[l_col])
-            if any(kw in row_label for kw in keywords):
-                for col in v_cols:
-                    num = clean_numeric_cell(row[col])
-                    if num != 0.0:
-                        t_data[col] = num
+        uploaded_file.seek(0)
+        clean_df = pd.read_csv(io.StringIO(uploaded_file.getvalue().decode("utf-8")), skiprows=header_row_idx).fillna(0)
+        clean_df.columns = [str(c).strip() for c in clean_df.columns]
+        label_col_name = clean_df.columns[0]
+        clean_df[label_col_name] = clean_df[label_col_name].astype(str).str.lower().str.strip()
+        active_data_cols = [c for c in clean_df.columns if c in periods or any(p in c for p in periods)]
+        extracted_timeline = {col: 0.0 for col in active_data_cols}
+        for index, row in clean_df.iterrows():
+            row_label = str(row[label_col_name])
+            if any(kw in row_label for kw in target_keywords):
+                for col in active_data_cols:
+                    val = clean_and_parse_value(row[col])
+                    if val != 0.0:
+                        extracted_timeline[col] = val
                 break
-        return t_data
+        return extracted_timeline
     except:
-        return None
+        return {}
 def run_live_pulse_library(current, prior):
     r, p, c, e, liab, ar = current["revenue"], current["profit"], current["cash"], current["expenses"], current["liabilities"], current["ar"]
     pr, pp, pc, pe, pliab, par = prior.get("revenue", 0), prior.get("profit", 0), prior.get("cash", 0), prior.get("expenses", 0), prior.get("liabilities", 0), prior.get("ar", 0)
@@ -121,6 +122,7 @@ def run_live_pulse_library(current, prior):
         "r2_ans": r2_ans, "r2_why": r2_why, "r2_class": r2_class,
         "r3_ans": r3_ans, "r3_why": r3_why, "r3_class": r3_class
     }
+
 st.markdown("<div class='brief-header'><div class='brief-title'>💼 Business Pulse Live</div></div>", unsafe_allowed_html=True)
 
 col1, col2 = st.columns(2)
@@ -131,13 +133,14 @@ rev_time, exp_time, prof_time = {}, {}, {}
 cash_time, ar_time, liab_time = {}, {}, {}
 
 if pl_file and bs_file:
-    rev_time = parse_accounting_csv(pl_file, ["total revenue", "total income", "gross sales"]) or {}
-    exp_time = parse_accounting_csv(pl_file, ["total expense", "total operating expenses"]) or {}
-    prof_time = parse_accounting_csv(pl_file, ["net income", "net profit", "bottom line"]) or {}
-    cash_time = parse_accounting_csv(bs_file, ["cash and cash equivalents", "total bank accounts", "cash at bank", "checking"]) or {}
-    ar_time = parse_accounting_csv(bs_file, ["accounts receivable", "trade debtors"]) or {}
-    liab_time = parse_accounting_csv(bs_file, ["total current liabilities", "accounts payable"]) or {}
+    rev_time = load_financial_sheet(pl_file, ["total revenue", "total income", "gross sales"]) or {}
+    exp_time = load_financial_sheet(pl_file, ["total expense", "total operating expenses"]) or {}
+    prof_time = load_financial_sheet(pl_file, ["net income", "net profit", "bottom line"]) or {}
+    cash_time = load_financial_sheet(bs_file, ["cash and cash equivalents", "total bank accounts", "cash at bank", "checking"]) or {}
+    ar_time = load_financial_sheet(bs_file, ["accounts receivable", "trade debtors"]) or {}
+    liab_time = load_financial_sheet(bs_file, ["total current liabilities", "accounts payable"]) or {}
 else:
+    st.warning("⚠️ Running default sandbox playground simulation values.")
     rev_time = {"Jan": 110000.0, "Feb": 135000.0, "Mar": 150000.0}
     exp_time = {"Jan": 90000.0, "Feb": 115000.0, "Mar": 125000.0}
     prof_time = {"Jan": 20000.0, "Feb": 20000.0, "Mar": 25000.0}
@@ -148,7 +151,7 @@ else:
 periods = list(rev_time.keys())
 
 if periods:
-    sel_p = st.selectbox("Choose a period:", reversed(periods))
+    sel_p = st.selectbox("🎯 Choose a tracking period:", reversed(periods))
     idx = periods.index(sel_p)
     p_period = periods[idx - 1] if idx > 0 else None
     c_data = {
