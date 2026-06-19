@@ -66,55 +66,82 @@ if generate:
     try:
 
         # =====================================================
-        # READ FILES AS TEXT (IMPORTANT FIX)
-        # =====================================================
+# READ FILES AS TEXT
+# =====================================================
 
-        pnl_lines = pnl_file.getvalue().decode("utf-8", errors="ignore").split("\n")
-        bs_lines = bs_file.getvalue().decode("utf-8", errors="ignore").split("\n")
+pnl_lines = pnl_file.getvalue().decode("utf-8", errors="ignore").split("\n")
+bs_lines = bs_file.getvalue().decode("utf-8", errors="ignore").split("\n")
 
-        # =====================================================
-        # VALUE EXTRACTOR
-        # =====================================================
+# =====================================================
+# VALUE EXTRACTOR
+# =====================================================
 
-        def find_value(lines, keyword):
-            for line in lines:
-                l = line.lower()
+def find_value(lines, keywords):
+    """
+    keywords = list of possible labels
+    """
+    for line in lines:
+        l = line.lower()
 
-                if keyword in l:
+        # check if ANY keyword matches this line
+        if any(k in l for k in keywords):
 
-                    nums = re.findall(r"-?\$?[\d,]+\.?\d*", line)
+            nums = re.findall(r"-?\$?[\d,]+\.?\d*", line)
 
-                    if nums:
-                        raw = nums[-1]
-                        try:
-                            return float(
-                                raw.replace("$", "").replace(",", "")
-                            )
-                        except:
-                            pass
+            if nums:
+                raw = nums[-1]
 
-            return None
+                try:
+                    return float(
+                        raw.replace("$", "").replace(",", "")
+                    )
+                except:
+                    continue
 
-        # =====================================================
-        # P&L EXTRACTION (QBO SAFE KEYS)
-        # =====================================================
+    return None
 
-        revenue = find_value(pnl_lines, "total revenue")
-        expenses = find_value(pnl_lines, "total expenses")
-        profit = find_value(pnl_lines, "net income")
+# =====================================================
+# P&L EXTRACTION (WITH FALLBACKS)
+# =====================================================
 
-        # fallback for QBO variants
-        if profit is None:
-            profit = find_value(pnl_lines, "net operating income")
+revenue = find_value(pnl_lines, [
+    "total revenue",
+    "total income",
+    "net sales",
+    "sales"
+])
 
-        # =====================================================
-        # BALANCE SHEET EXTRACTION
-        # =====================================================
+expenses = find_value(pnl_lines, [
+    "total expenses",
+    "expenses"
+])
 
-        cash = find_value(bs_lines, "cash")
-        ar = find_value(bs_lines, "accounts receivable")
-        liabilities = find_value(bs_lines, "total liabilities")
+profit = find_value(pnl_lines, [
+    "net income",
+    "net operating income"
+])
 
+# =====================================================
+# BALANCE SHEET EXTRACTION (WITH FALLBACKS)
+# =====================================================
+
+cash = find_value(bs_lines, [
+    "cash",
+    "checking",
+    "bank",
+    "total bank",
+    "cash and cash equivalents"
+])
+
+ar = find_value(bs_lines, [
+    "accounts receivable",
+    "receivable"
+])
+
+liabilities = find_value(bs_lines, [
+    "total liabilities",
+    "liabilities"
+])
         # =====================================================
         # SIMPLE BUSINESS STATE
         # =====================================================
