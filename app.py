@@ -1,7 +1,7 @@
 import streamlit as st
-import pandas as pd
+import re
 
-st.set_page_config(page_title="Business Pulse")
+st.set_page_config(page_title="Business Pulse", layout="wide")
 
 st.title("Business Pulse")
 
@@ -15,75 +15,14 @@ def fmt(v):
     return f"${v:,.0f}"
 
 
-import re
-
-def find_value(text_lines, keyword):
-    for line in text_lines:
-        l = line.lower()
-
-        if keyword in l:
-
-            # find all numbers in line
-            nums = re.findall(r"-?\$?[\d,]+\.?\d*", line)
-
-            if nums:
-                raw = nums[-1]
-
-                return float(
-                    raw.replace("$", "")
-                       .replace(",", "")
-                )
-
-    return None
-
-
-# =====================================================
-# FILE UPLOADS
-# =====================================================
-
-pnl_file = st.file_uploader(
-    "Upload Profit & Loss CSV",
-    type=["csv"]
-)
-
-bs_file = st.file_uploader(
-    "Upload Balance Sheet CSV",
-    type=["csv"]
-)
-
-generate = st.button("Generate Business Pulse")
-
-# =====================================================
-# RUN
-# =====================================================
-
-if generate:
-
-    if pnl_file is None or bs_file is None:
-        st.error("Please upload both Profit & Loss and Balance Sheet CSV files.")
-        st.stop()
-
-    try:
-
-        # =====================================================
-# READ FILES AS TEXT
-# =====================================================
-
-pnl_lines = pnl_file.getvalue().decode("utf-8", errors="ignore").split("\n")
-bs_lines = bs_file.getvalue().decode("utf-8", errors="ignore").split("\n")
-
-# =====================================================
-# VALUE EXTRACTOR
-# =====================================================
-
 def find_value(lines, keywords):
     """
-    keywords = list of possible labels
+    Finds a number from a line that contains ANY keyword.
+    Works for QuickBooks exports.
     """
     for line in lines:
         l = line.lower()
 
-        # check if ANY keyword matches this line
         if any(k in l for k in keywords):
 
             nums = re.findall(r"-?\$?[\d,]+\.?\d*", line)
@@ -100,50 +39,81 @@ def find_value(lines, keywords):
 
     return None
 
-# =====================================================
-# P&L EXTRACTION (WITH FALLBACKS)
-# =====================================================
-
-revenue = find_value(pnl_lines, [
-    "total revenue",
-    "total income",
-    "net sales",
-    "sales"
-])
-
-expenses = find_value(pnl_lines, [
-    "total expenses",
-    "expenses"
-])
-
-profit = find_value(pnl_lines, [
-    "net income",
-    "net operating income"
-])
 
 # =====================================================
-# BALANCE SHEET EXTRACTION (WITH FALLBACKS)
+# UPLOADS
 # =====================================================
 
-cash = find_value(bs_lines, [
-    "cash",
-    "checking",
-    "bank",
-    "total bank",
-    "cash and cash equivalents"
-])
+pnl_file = st.file_uploader("Upload Profit & Loss CSV", type=["csv"])
+bs_file = st.file_uploader("Upload Balance Sheet CSV", type=["csv"])
 
-ar = find_value(bs_lines, [
-    "accounts receivable",
-    "receivable"
-])
+generate = st.button("Generate Business Pulse")
 
-liabilities = find_value(bs_lines, [
-    "total liabilities",
-    "liabilities"
-])
+
+# =====================================================
+# RUN
+# =====================================================
+
+if generate:
+
+    if pnl_file is None or bs_file is None:
+        st.error("Please upload both Profit & Loss and Balance Sheet CSV files.")
+        st.stop()
+
+    try:
+
         # =====================================================
-        # SIMPLE BUSINESS STATE
+        # READ FILES AS TEXT
+        # =====================================================
+
+        pnl_lines = pnl_file.getvalue().decode("utf-8", errors="ignore").split("\n")
+        bs_lines = bs_file.getvalue().decode("utf-8", errors="ignore").split("\n")
+
+        # =====================================================
+        # P&L EXTRACTION
+        # =====================================================
+
+        revenue = find_value(pnl_lines, [
+            "total revenue",
+            "total income",
+            "net sales",
+            "sales"
+        ])
+
+        expenses = find_value(pnl_lines, [
+            "total expenses",
+            "expenses"
+        ])
+
+        profit = find_value(pnl_lines, [
+            "net income",
+            "net operating income"
+        ])
+
+        # =====================================================
+        # BALANCE SHEET EXTRACTION
+        # =====================================================
+
+        cash = find_value(bs_lines, [
+            "cash",
+            "checking",
+            "bank",
+            "total bank",
+            "cash and cash equivalents"
+        ])
+
+        ar = find_value(bs_lines, [
+            "accounts receivable",
+            "receivable"
+        ])
+
+        liabilities = find_value(bs_lines, [
+            "total liabilities",
+            "liabilities"
+        ])
+
+        # =====================================================
+        # BUSINESS STATE
         # =====================================================
 
         overall = "stable"
@@ -177,21 +147,21 @@ liabilities = find_value(bs_lines, [
         st.write(f"Profit: {fmt(profit)}")
 
         st.write("Why")
-        st.write("Profit reflects revenue minus expenses during the period.")
+        st.write("Profit is revenue minus expenses over the period.")
 
         st.header("Growth")
         st.write("What Happened")
         st.write(f"Revenue: {fmt(revenue)}")
 
         st.write("Why")
-        st.write("Revenue represents total sales activity for the period.")
+        st.write("Revenue reflects total sales activity during the period.")
 
         st.header("Expenses")
         st.write("What Happened")
         st.write(f"Expenses: {fmt(expenses)}")
 
         st.write("Why")
-        st.write("Expenses reduce the profit retained by the business.")
+        st.write("Expenses reduce profit retained by the business.")
 
         st.header("Cash Position")
         st.write("What Happened")
@@ -200,7 +170,7 @@ liabilities = find_value(bs_lines, [
         st.write(f"Liabilities: {fmt(liabilities)}")
 
         st.write("Why")
-        st.write("Cash is available funds, receivables are unpaid invoices, and liabilities are obligations.")
+        st.write("Cash is available funds, receivables are money owed, liabilities are obligations.")
 
     except Exception as e:
         st.error(f"Error processing files: {e}")
