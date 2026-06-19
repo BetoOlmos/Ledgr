@@ -49,8 +49,8 @@ def clean_numeric_cell(val):
         s = str(val).strip().replace('$', '').replace(',', '')
         if '(' in s and ')' in s:
             s = '-' + s.replace('(', '').replace(')', '')
-        s = s.split()[0]  # Remove trailing text inside cells
-        return float(s)
+        s = s.split()  # Remove trailing text inside cells
+        return float(s[0])
     except:
         return 0.0
 
