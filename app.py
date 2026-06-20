@@ -1,183 +1,121 @@
 import streamlit as st
-import re
 
-st.set_page_config(page_title="Business Pulse", layout="wide")
+st.set_page_config(page_title="Business Pulse", layout="centered")
 
 st.title("Business Pulse")
+st.subheader("Quick Business Check-in")
 
 # =====================================================
-# HELPERS
+# SESSION STORAGE
 # =====================================================
 
-def fmt(v):
-    if v is None:
-        return "N/A"
-    return f"${v:,.0f}"
-
-
-def find_value(lines, keywords):
-
-    best_match = None
-
-    for line in lines:
-        l = line.lower()
-
-        if any(k in l for k in keywords):
-
-            nums = re.findall(r"-?\$?[\d,]+\.?\d*", line)
-
-            if not nums:
-                continue
-
-            raw = nums[-1]
-
-            try:
-                value = float(raw.replace("$", "").replace(",", ""))
-
-                # PRIORITY BOOST: prefer TOTAL rows
-                if "total" in l:
-                    return value
-
-                # otherwise store fallback
-                best_match = value
-
-            except:
-                continue
-
-    return best_match
-
+if "feedback" not in st.session_state:
+    st.session_state.feedback = []
 
 # =====================================================
-# UPLOADS
+# INPUTS (8 QUESTIONS)
 # =====================================================
 
-pnl_file = st.file_uploader("Upload Profit & Loss CSV", type=["csv"])
-bs_file = st.file_uploader("Upload Balance Sheet CSV", type=["csv"])
+revenue = st.number_input("Revenue this month ($)", min_value=0.0)
+expenses = st.number_input("Total expenses this month ($)", min_value=0.0)
 
-generate = st.button("Generate Business Pulse")
+profit_input = st.number_input("Net profit (optional, you can leave 0)", min_value=0.0)
 
+cash = st.number_input("Cash in bank ($)", min_value=0.0)
+receivables = st.number_input("Money owed to you ($)", min_value=0.0)
+
+liabilities = st.number_input("Total debt / liabilities ($)", min_value=0.0)
+obligations = st.number_input("Big monthly obligations ($)", min_value=0.0)
+
+business_type = st.text_input("Business type (e.g. landscaping, trucking, consulting)")
 
 # =====================================================
-# RUN
+# AUTO CALC (if user didn't input profit)
 # =====================================================
 
-if generate:
+profit = profit_input if profit_input > 0 else (revenue - expenses)
 
-    if pnl_file is None or bs_file is None:
-        st.error("Please upload both Profit & Loss and Balance Sheet CSV files.")
-        st.stop()
+# =====================================================
+# INSIGHT ENGINE
+# =====================================================
 
-    try:
+def level(value):
+    if value is None:
+        return "unknown"
+    if value > 0:
+        return "positive"
+    return "negative"
 
-        # =====================================================
-        # READ FILES AS TEXT
-        # =====================================================
+# -----------------------------
+# 1. MAKING MONEY
+# -----------------------------
 
-        pnl_lines = pnl_file.getvalue().decode("utf-8", errors="ignore").split("\n")
-        bs_lines = bs_file.getvalue().decode("utf-8", errors="ignore").split("\n")
+st.header("1. Am I making money?")
 
-        # =====================================================
-        # P&L EXTRACTION
-        # =====================================================
+st.write(f"Profit: ${profit:,.0f}")
 
-        revenue = find_value(pnl_lines, [
-            "total revenue",
-            "total income",
-            "net sales",
-            "sales"
-        ])
+if profit > 0:
+    st.success("Yes — your business is generating profit.")
+else:
+    st.error("No — your expenses are exceeding your revenue.")
 
-        expenses = find_value(pnl_lines, [
-            "total expenses",
-            "expenses"
-        ])
+# -----------------------------
+# 2. FINANCIAL STABILITY
+# -----------------------------
 
-        profit = find_value(pnl_lines, [
-            "net income",
-            "net operating income"
-        ])
+st.header("2. Am I financially stable right now?")
 
-        # =====================================================
-        # BALANCE SHEET EXTRACTION
-        # =====================================================
+st.write(f"Cash: ${cash:,.0f}")
+st.write(f"Receivables: ${receivables:,.0f}")
 
-        cash = find_value(bs_lines, [
-            "cash",
-            "checking",
-            "bank",
-            "total bank",
-            "cash and cash equivalents"
-        ])
+if cash > 0 and cash > expenses:
+    st.success("Your cash position looks stable.")
+elif cash > 0:
+    st.warning("You have cash, but it may be tight relative to expenses.")
+else:
+    st.error("Cash position looks weak.")
 
-        ar = find_value(bs_lines, [
-            "accounts receivable",
-            "receivable"
-        ])
+# -----------------------------
+# 3. DEBT PRESSURE
+# -----------------------------
 
-        liabilities = find_value(bs_lines, [
-            "total liabilities",
-            "liabilities"
-        ])
+st.header("3. Can I handle my obligations?")
 
-        # =====================================================
-        # BUSINESS STATE
-        # =====================================================
+st.write(f"Liabilities: ${liabilities:,.0f}")
+st.write(f"Monthly obligations: ${obligations:,.0f}")
 
-        overall = "stable"
+if liabilities < cash:
+    st.success("Debt level looks manageable compared to cash.")
+else:
+    st.warning("Debt may be putting pressure on your cash position.")
 
-        if profit is not None:
-            if profit > 0:
-                overall = "growing"
-            elif profit < 0:
-                overall = "under pressure"
+# =====================================================
+# FEEDBACK SECTION
+# =====================================================
 
-        # =====================================================
-        # BUSINESS SNAPSHOT
-        # =====================================================
+st.divider()
+st.subheader("Feedback")
 
-        snapshot = (
-            f"Revenue was {fmt(revenue)} and profit was {fmt(profit)}. "
-            f"Cash is {fmt(cash)} and accounts receivable are {fmt(ar)}. "
-            f"Overall, the business appears {overall}."
-        )
+feedback_text = st.text_area("What should Business Pulse tell you that it didn’t?")
 
-        # =====================================================
-        # OUTPUT
-        # =====================================================
+if st.button("Send Feedback"):
 
-        st.header("Business Snapshot")
-        st.write(snapshot)
+    if feedback_text.strip():
+        st.session_state.feedback.append(feedback_text)
+        st.success("Thanks — feedback saved!")
+    else:
+        st.warning("Please write something first.")
 
-        st.header("Profitability")
-        st.write("What Happened")
-        st.write(f"Revenue: {fmt(revenue)}")
-        st.write(f"Profit: {fmt(profit)}")
+# =====================================================
+# ADMIN VIEW (YOU ONLY)
+# =====================================================
 
-        st.write("Why")
-        st.write("Profit is revenue minus expenses over the period.")
+if st.checkbox("Admin: View Feedback"):
 
-        st.header("Growth")
-        st.write("What Happened")
-        st.write(f"Revenue: {fmt(revenue)}")
+    st.subheader("Collected Feedback")
 
-        st.write("Why")
-        st.write("Revenue reflects total sales activity during the period.")
-
-        st.header("Expenses")
-        st.write("What Happened")
-        st.write(f"Expenses: {fmt(expenses)}")
-
-        st.write("Why")
-        st.write("Expenses reduce profit retained by the business.")
-
-        st.header("Cash Position")
-        st.write("What Happened")
-        st.write(f"Cash: {fmt(cash)}")
-        st.write(f"Accounts Receivable: {fmt(ar)}")
-        st.write(f"Liabilities: {fmt(liabilities)}")
-
-        st.write("Why")
-        st.write("Cash is available funds, receivables are money owed, liabilities are obligations.")
-
-    except Exception as e:
-        st.error(f"Error processing files: {e}")
+    if not st.session_state.feedback:
+        st.write("No feedback yet.")
+    else:
+        for i, f in enumerate(st.session_state.feedback, 1):
+            st.write(f"{i}. {f}")
