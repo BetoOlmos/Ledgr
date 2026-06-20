@@ -96,26 +96,9 @@ else:
 st.divider()
 st.subheader("Feedback")
 
-feedback_text = st.text_area("What should Business Pulse tell you that it didn’t?")
+st.write("Tell us what Business Pulse is missing or what would make it more useful:")
 
-if st.button("Send Feedback"):
-
-    if feedback_text.strip():
-        st.session_state.feedback.append(feedback_text)
-        st.success("Thanks — feedback saved!")
-    else:
-        st.warning("Please write something first.")
-
-# =====================================================
-# ADMIN VIEW (YOU ONLY)
-# =====================================================
-
-if st.checkbox("Admin: View Feedback"):
-
-    st.subheader("Collected Feedback")
-
-    if not st.session_state.feedback:
-        st.write("No feedback yet.")
-    else:
-        for i, f in enumerate(st.session_state.feedback, 1):
-            st.write(f"{i}. {f}")
+st.link_button(
+    "Give Feedback",
+    "https://forms.gle/12KE3QUUvvRBNJK36"
+)
