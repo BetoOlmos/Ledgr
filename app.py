@@ -1,9 +1,9 @@
 import streamlit as st
 
-st.set_page_config(page_title="Business Pulse", layout="centered")
+st.set_page_config(page_title="EO2Q", layout="centered")
 
-st.title("Business Pulse")
-st.subheader("Quick Business Check-in")
+st.title("EO2Q")
+st.subheader("See what your numbers are telling you.")
 
 # =====================================================
 # SESSION STORAGE
