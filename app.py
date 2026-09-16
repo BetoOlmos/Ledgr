@@ -64,7 +64,6 @@ business_type = st.text_input(
 def analyze_profitability(profit):
 
     if profit > 0:
-
         return (
             "Your business is currently generating positive earnings. "
             "This indicates that your operations are producing more income "
@@ -73,7 +72,6 @@ def analyze_profitability(profit):
         )
 
     else:
-
         return (
             "Your business is currently operating at a loss, meaning expenses "
             "are exceeding revenue. If this trend continues, it may reduce "
@@ -81,10 +79,47 @@ def analyze_profitability(profit):
         )
 
 
+def analyze_obligations(liabilities, cash):
+
+    if liabilities == 0:
+        return (
+            "Your business currently has no reported liabilities, reducing "
+            "financial pressure and providing additional flexibility."
+        )
+
+    if cash == 0:
+        return (
+            "Your liabilities should be monitored closely because your current "
+            "cash position does not provide a clear financial cushion."
+        )
+
+    ratio = liabilities / cash
+
+    if ratio < 1:
+        return (
+            "Your obligations appear manageable based on your current "
+            "financial position. Your available resources provide a cushion "
+            "against short-term financial pressure."
+        )
+
+    elif ratio < 3:
+        return (
+            "Your obligations appear manageable, but liabilities deserve "
+            "ongoing attention. Maintaining consistent cash flow will help "
+            "ensure these commitments remain comfortable."
+        )
+
+    else:
+        return (
+            "Your current obligations may create financial pressure if cash "
+            "flow slows. Reducing liabilities or strengthening available cash "
+            "could improve financial flexibility."
+        )
+
+
 def analyze_stability(cash, obligations):
 
     if obligations <= 0:
-
         return (
             "Your cash position provides some financial flexibility, but "
             "additional information about monthly obligations would help "
@@ -93,27 +128,23 @@ def analyze_stability(cash, obligations):
 
     runway = cash / obligations
 
-
     if runway >= 12:
-
         return (
             f"Your current financial position provides a strong cushion. "
             f"Based on your reported obligations, your business has "
-            f"approximately {runway:.0f} months of cash coverage if "
+            f"approximately {runway:.1f} months of cash coverage if "
             f"conditions remain unchanged."
         )
 
     elif runway >= 6:
-
         return (
             f"Your business appears financially stable. Based on your current "
-            f"obligations, you have approximately {runway:.0f} months of "
+            f"obligations, you have approximately {runway:.1f} months of "
             f"cash coverage. Maintaining consistent cash flow will remain "
             f"important."
         )
 
     else:
-
         return (
             f"Your available cash provides limited flexibility. Based on your "
             f"current obligations, you have approximately {runway:.1f} months "
@@ -121,72 +152,21 @@ def analyze_stability(cash, obligations):
         )
 
 
-def analyze_obligations(liabilities, cash):
-
-    if liabilities == 0:
-
-        return (
-            "Your business currently has no reported liabilities, reducing "
-            "financial pressure and providing additional flexibility."
-        )
-
-
-    if cash == 0:
-
-        return (
-            "Your liabilities should be monitored closely because your current "
-            "cash position does not provide a clear financial cushion."
-        )
-
-
-    ratio = liabilities / cash
-
-
-    if ratio < 1:
-
-        return (
-            "Your obligations appear manageable based on your current "
-            "financial position. Your available resources provide a cushion "
-            "against short-term financial pressure."
-        )
-
-    elif ratio < 3:
-
-        return (
-            "Your obligations appear manageable, but liabilities deserve "
-            "ongoing attention. Maintaining consistent cash flow will help "
-            "ensure these commitments remain comfortable."
-        )
-
-
-    else:
-
-        return (
-            "Your current obligations may create financial pressure if cash "
-            "flow slows. Reducing liabilities or strengthening available cash "
-            "could improve financial flexibility."
-        )
-
-
 def determine_health(profit, cash, liabilities):
 
     if profit > 0 and cash >= liabilities:
-
         return "Stable"
 
     elif profit > 0:
-
         return "Watch"
 
     else:
-
         return "Needs Attention"
 
 
 def recommendation(profit, cash, liabilities):
 
     if profit > 0 and cash >= liabilities:
-
         return (
             "Continue protecting profitability while evaluating whether "
             "available resources could be used to accelerate growth, reduce "
@@ -194,14 +174,12 @@ def recommendation(profit, cash, liabilities):
         )
 
     elif profit > 0:
-
         return (
             "Focus on maintaining profitability while improving cash reserves "
             "and monitoring financial commitments."
         )
 
     else:
-
         return (
             "Prioritize improving profitability and cash flow before taking "
             "on additional financial commitments."
@@ -209,20 +187,16 @@ def recommendation(profit, cash, liabilities):
 
 
 # =====================================================
-# GENERATE REPORT BUTTON
+# GENERATE REPORT
 # =====================================================
 
 if st.button("Generate EO2Q"):
-
-
-    # Validate inputs
 
     if revenue == 0 or expenses == 0 or cash == 0 or obligations == 0:
 
         st.warning(
             "Please complete all financial fields before generating your EO2Q."
         )
-
 
     else:
 
@@ -232,20 +206,17 @@ if st.button("Generate EO2Q"):
             else revenue - expenses
         )
 
-
         health = determine_health(
             profit,
             cash,
             liabilities
         )
 
-
         st.divider()
 
         st.header(
             f"Overall Financial Health: {health}"
         )
-
 
         if health == "Stable":
 
@@ -257,7 +228,6 @@ if st.button("Generate EO2Q"):
                 "future growth."
             )
 
-
         elif health == "Watch":
 
             st.write(
@@ -266,7 +236,6 @@ if st.button("Generate EO2Q"):
                 "your financial position can provide more flexibility and reduce "
                 "future risk."
             )
-
 
         else:
 
@@ -277,9 +246,9 @@ if st.button("Generate EO2Q"):
             )
 
 
-        # ---------------------------------------------
-        # Profitability
-        # ---------------------------------------------
+        # =================================================
+        # PROFITABILITY
+        # =================================================
 
         st.header("Profitability")
 
@@ -299,14 +268,14 @@ if st.button("Generate EO2Q"):
         else:
 
             st.write(
-                f"For every $1 of revenue, your business is losing "
+                f"For every $1 of revenue, your business loses "
                 f"${abs(profit_per_dollar):.2f} after expenses."
             )
 
 
-        # ---------------------------------------------
-        # Obligations
-        # ---------------------------------------------
+        # =================================================
+        # OBLIGATIONS
+        # =================================================
 
         st.header("Obligations")
 
@@ -332,9 +301,9 @@ if st.button("Generate EO2Q"):
         )
 
 
-        # ---------------------------------------------
-        # Financial Stability
-        # ---------------------------------------------
+        # =================================================
+        # FINANCIAL STABILITY
+        # =================================================
 
         st.header("Financial Stability")
 
@@ -346,9 +315,9 @@ if st.button("Generate EO2Q"):
         )
 
 
-        # ---------------------------------------------
-        # Recommendation
-        # ---------------------------------------------
+        # =================================================
+        # RECOMMENDED FOCUS
+        # =================================================
 
         st.header("Recommended Focus")
 
@@ -372,7 +341,6 @@ st.subheader("Feedback")
 feedback_text = st.text_area(
     "What should EO2Q tell you that it didn't?"
 )
-
 
 if st.button("Send Feedback"):
 
@@ -401,7 +369,6 @@ if st.checkbox("Admin: View Feedback"):
 
     st.subheader("Collected Feedback")
 
-
     if not st.session_state.feedback:
 
         st.write(
@@ -424,4 +391,3 @@ st.link_button(
     "Give Feedback",
     "https://forms.gle/12KE3QUUvvRBNJK36"
 )
-```
