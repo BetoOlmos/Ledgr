@@ -1,3 +1,4 @@
+```python
 import streamlit as st
 
 st.set_page_config(page_title="EO2Q", layout="centered")
@@ -260,16 +261,16 @@ if st.button("Generate EO2Q"):
 
         if profit > 0:
 
-            st.write(
-                f"For every $1 of revenue, your business keeps "
-                f"${profit_per_dollar:.2f} after expenses."
+            st.markdown(
+                f"For every \\$1 of revenue, your business keeps "
+                f"\\${profit_per_dollar:.2f} after expenses."
             )
 
         else:
 
-            st.write(
-                f"For every $1 of revenue, your business loses "
-                f"${abs(profit_per_dollar):.2f} after expenses."
+            st.markdown(
+                f"For every \\$1 of revenue, your business loses "
+                f"\\${abs(profit_per_dollar):.2f} after expenses."
             )
 
 
@@ -290,14 +291,14 @@ if st.button("Generate EO2Q"):
 
         cash_per_obligation_dollar = cash / obligations
 
-        st.write(
-            f"For every $1 of revenue, your business has "
-            f"${liabilities_per_dollar:.2f} in liabilities."
+        st.markdown(
+            f"For every \\$1 of revenue, your business has "
+            f"\\${liabilities_per_dollar:.2f} in liabilities."
         )
 
-        st.write(
-            f"For every $1 of monthly obligations, your business has "
-            f"${cash_per_obligation_dollar:.2f} in cash."
+        st.markdown(
+            f"For every \\$1 of monthly obligations, your business has "
+            f"\\${cash_per_obligation_dollar:.2f} in cash."
         )
 
 
@@ -391,3 +392,4 @@ st.link_button(
     "Give Feedback",
     "https://forms.gle/12KE3QUUvvRBNJK36"
 )
+```
