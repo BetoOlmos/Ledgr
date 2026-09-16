@@ -1,3 +1,4 @@
+```python
 import streamlit as st
 
 st.set_page_config(page_title="EO2Q", layout="centered")
@@ -116,7 +117,7 @@ def analyze_stability(cash, obligations):
 
         return (
             f"Your available cash provides limited flexibility. Based on your "
-            f"current obligations, you have approximately {runway:.0f} months "
+            f"current obligations, you have approximately {runway:.1f} months "
             f"of cash coverage. Improving cash flow should be a priority."
         )
 
@@ -157,6 +158,7 @@ def analyze_obligations(liabilities, cash):
             "ongoing attention. Maintaining consistent cash flow will help "
             "ensure these commitments remain comfortable."
         )
+
 
     else:
 
@@ -231,9 +233,6 @@ if st.button("Generate EO2Q"):
             else revenue - expenses
         )
 
-        # Profit margin expressed as dollars kept per $1 of revenue
-        profit_per_dollar = profit / revenue
-
 
         health = determine_health(
             profit,
@@ -289,6 +288,8 @@ if st.button("Generate EO2Q"):
             analyze_profitability(profit)
         )
 
+        profit_per_dollar = profit / revenue
+
         if profit > 0:
 
             st.write(
@@ -302,6 +303,34 @@ if st.button("Generate EO2Q"):
                 f"For every $1 of revenue, your business is losing "
                 f"${abs(profit_per_dollar):.2f} after expenses."
             )
+
+
+        # ---------------------------------------------
+        # Obligations
+        # ---------------------------------------------
+
+        st.header("Obligations")
+
+        st.write(
+            analyze_obligations(
+                liabilities,
+                cash
+            )
+        )
+
+        liabilities_per_dollar = liabilities / revenue
+
+        cash_per_obligation_dollar = cash / obligations
+
+        st.write(
+            f"For every $1 of revenue, your business has "
+            f"${liabilities_per_dollar:.2f} in liabilities."
+        )
+
+        st.write(
+            f"For every $1 of monthly obligations, your business has "
+            f"${cash_per_obligation_dollar:.2f} in cash."
+        )
 
 
         # ---------------------------------------------
@@ -319,21 +348,7 @@ if st.button("Generate EO2Q"):
 
 
         # ---------------------------------------------
-        # Obligations
-        # ---------------------------------------------
-
-        st.header("Obligations")
-
-        st.write(
-            analyze_obligations(
-                liabilities,
-                cash
-            )
-        )
-
-
-        # ---------------------------------------------
-        # Recommended Focus
+        # Recommendation
         # ---------------------------------------------
 
         st.header("Recommended Focus")
@@ -410,3 +425,4 @@ st.link_button(
     "Give Feedback",
     "https://forms.gle/12KE3QUUvvRBNJK36"
 )
+```
