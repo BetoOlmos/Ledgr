@@ -211,7 +211,7 @@ def recommendation(profit, cash, liabilities):
 # GENERATE REPORT BUTTON
 # =====================================================
 
-if st.button("Generate My Business Pulse"):
+if st.button("Generate EO2Q"):
 
 
     # Validate inputs
@@ -219,7 +219,7 @@ if st.button("Generate My Business Pulse"):
     if revenue == 0 or expenses == 0 or cash == 0 or obligations == 0:
 
         st.warning(
-            "Please complete all financial fields before generating your Business Pulse."
+            "Please complete all financial fields before generating your EO2Q."
         )
 
 
@@ -230,6 +230,9 @@ if st.button("Generate My Business Pulse"):
             if profit_input > 0
             else revenue - expenses
         )
+
+        # Profit margin expressed as dollars kept per $1 of revenue
+        profit_per_dollar = profit / revenue
 
 
         health = determine_health(
@@ -286,6 +289,20 @@ if st.button("Generate My Business Pulse"):
             analyze_profitability(profit)
         )
 
+        if profit > 0:
+
+            st.write(
+                f"For every $1 of revenue, your business keeps "
+                f"${profit_per_dollar:.2f} after expenses."
+            )
+
+        else:
+
+            st.write(
+                f"For every $1 of revenue, your business is losing "
+                f"${abs(profit_per_dollar):.2f} after expenses."
+            )
+
 
         # ---------------------------------------------
         # Financial Stability
@@ -316,7 +333,7 @@ if st.button("Generate My Business Pulse"):
 
 
         # ---------------------------------------------
-        # Recommendation
+        # Recommended Focus
         # ---------------------------------------------
 
         st.header("Recommended Focus")
@@ -339,7 +356,7 @@ st.divider()
 st.subheader("Feedback")
 
 feedback_text = st.text_area(
-    "What should Business Pulse tell you that it didn't?"
+    "What should EO2Q tell you that it didn't?"
 )
 
 
