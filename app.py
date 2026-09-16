@@ -1,4 +1,3 @@
-```python
 import streamlit as st
 
 st.set_page_config(page_title="EO2Q", layout="centered")
